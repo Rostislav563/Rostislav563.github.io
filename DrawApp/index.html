@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sleek Draw</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <nav class="app-header">
+        <div class="tool-row">
+            <div class="tool-group">
+                <button id="brushBtn" class="active" title="Brush">🖌️ Brush</button>
+                <button id="eraserBtn" title="Eraser">🧽 Eraser</button>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="tool-group">
+                <input type="color" id="colorPicker" value="#6366f1">
+                <input type="range" id="lineWidth" min="1" max="80" value="10">
+                <select id="lineStyle">
+                    <option value="pen">🖋️ Pen</option>
+                    <option value="graffiti">💨 Spray</option>
+                </select>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="tool-group">
+                <button id="clearBtn" class="secondary">Clear</button>
+                <button id="saveBtn" class="primary">Save Art</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="canvas-container">
+        <canvas id="paintCanvas"></canvas>
+    </main>
+
+    <section class="gallery-section">
+        <div class="gallery-header">
+            <h2>Saved Creations</h2>
+            <button id="clearGalleryBtn" class="text-btn">Delete All</button>
+        </div>
+        <div id="gallery" class="gallery-grid"></div>
+    </section>
+
+    <script src="script.js"></script>
+</body>
+</html>
