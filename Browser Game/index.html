@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fly Survival - Anti-Stacking Edition</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh; 
+            background-color: #1a1a1a; 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            overflow: hidden; 
+        }
+        canvas { 
+            border: 2px solid #444; 
+            background-color: #0a0a0a; 
+            display: block; 
+            box-shadow: 0 0 30px rgba(0,0,0,0.7); 
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <script>
+        // ==================== ЗАГРУЗКА СПРАЙТОВ ====================
+        const sprites = {
+            player: new Image(),
+            enemy: new Image()
+        };
+        
+        sprites.player.src = 'fly.png'; 
+        sprites.enemy.src = 'spider.png';
+
+        // ==================== КОНСТАНТЫ ====================
+        const CONSTANTS = {
+            CANVAS_WIDTH: 800,
+            CANVAS_HEIGHT: 600,
+            PLAYER_SIZE: 40,
+            ENEMY_RADIUS: 20,
+            PLAYER_SPEED: 350,
+            SCORE_PER_SECOND: 10,
+            SEPARATION_DISTANCE: 45, // Дистанция, при которой пауки начинают расталкиваться
+            SEPARATION_FORCE: 60     // Сила расталкивания
+        };
+
+        const DIFFICULTY_PRESETS = {
+            easy: { name: 'EASY', enemySpeed: 100, spawnInterval: 4.0, minSpawnInterval: 2.0, difficultyScale: 0.05 },
+            medium: { name: 'MEDIUM', enemySpeed: 150, spawnInterval: 2.5, minSpawnInterval: 1.2, difficultyScale: 0.1 },
+            hard: { name: 'HARD', enemySpeed: 210, spawnInterval: 1.5, minSpawnInterval: 0.7, difficultyScale: 0.15 },
+        };
+
+        const state = {
+            gameState: 'MENU',
+            player: { x: 400, y: 300, width: CONSTANTS.PLAYER_SIZE, height: CONSTANTS.PLAYER_SIZE },
+            enemies: [],
+            particles: [],
+            gameOver: false,
+            timeSurvived: 0,
+            score: 0,
+            spawnTimer: 0,
+            highScore: 0
+        };
+
+        // ==================== УПРАВЛЕНИЕ И ПОМОЩНИКИ ====================
+        const keysPressed = {};
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            keysPressed[key] = true;
+            if (state.gameState === 'MENU' && ['1','2','3'].includes(key)) {
+                startGame(key === '1' ? 'easy' : key === '2' ? 'medium' : 'hard');
+            }
+            if (key === 'r' && state.gameOver) state.gameState = 'MENU';
+        });
+        window.addEventListener('keyup', (e) => { keysPressed[e.key.toLowerCase()] = false; });
+
+        function saveHighScore(score) { localStorage.setItem('fly_game_highscore', score); }
+        function getHighScore() { return parseInt(localStorage.getItem('fly_game_highscore')) || 0; }
+
+        function spawnEnemyAtRandomEdge() {
+            const edge = Math.floor(Math.random() * 4);
+            let x, y;
+            const diffMult = 1.0 + (state.timeSurvived * state.difficultyScale) / 15;
+            
+            if (edge === 0) { x = Math.random() * 800; y = -50; }
+            else if (edge === 1) { x = 850; y = Math.random() * 600; }
+            else if (edge === 2) { x = Math.random() * 800; y = 650; }
+            else { x = -50; y = Math.random() * 600; }
+
+            state.enemies.push({ x, y, radius: CONSTANTS.ENEMY_RADIUS, speed: state.enemySpeed * diffMult });
+        }
+
+        function startGame(difficulty) {
+            const preset = DIFFICULTY_PRESETS[difficulty];
+            Object.assign(state, {
+                ...preset,
+                gameState: 'PLAY',
+                gameOver: false,
+                timeSurvived: 0,
+                score: 0,
+                spawnTimer: 0,
+                enemies: [],
+                particles: [],
+                player: { x: 380, y: 280, width: CONSTANTS.PLAYER_SIZE, height: CONSTANTS.PLAYER_SIZE }
+            });
+            spawnEnemyAtRandomEdge();
+        }
+
+        // ==================== ГЛАВНЫЙ ЦИКЛ ОБНОВЛЕНИЯ ====================
+        function update(deltaTime) {
+            if (state.gameState !== 'PLAY' || state.gameOver) return;
+
+            // Обновление времени и счета
+            state.timeSurvived += deltaTime;
+            state.score = Math.floor(state.timeSurvived * CONSTANTS.SCORE_PER_SECOND);
+
+            // Движение мухи
+            let vx = 0, vy = 0;
+            if (keysPressed['w'] || keysPressed['arrowup']) vy = -CONSTANTS.PLAYER_SPEED;
+            if (keysPressed['s'] || keysPressed['arrowdown']) vy = CONSTANTS.PLAYER_SPEED;
+            if (keysPressed['a'] || keysPressed['arrowleft']) vx = -CONSTANTS.PLAYER_SPEED;
+            if (keysPressed['d'] || keysPressed['arrowright']) vx = CONSTANTS.PLAYER_SPEED;
+
+            state.player.x = Math.max(0, Math.min(800 - state.player.width, state.player.x + vx * deltaTime));
+            state.player.y = Math.max(0, Math.min(600 - state.player.height, state.player.y + vy * deltaTime));
+
+            // Таймер появления новых врагов
+            state.spawnTimer += deltaTime;
+            const currentInterval = Math.max(state.minSpawnInterval, state.spawnInterval - (state.timeSurvived * 0.05));
+            if (state.spawnTimer >= currentInterval) {
+                spawnEnemyAtRandomEdge();
+                state.spawnTimer = 0;
+            }
+
+            // Логика поведения пауков
+            for (let i = 0; i < state.enemies.length; i++) {
+                const en = state.enemies[i];
+                
+                // Вектор к игроку (преследование)
+                const dx = (state.player.x + state.player.width/2) - en.x;
+                const dy = (state.player.y + state.player.height/2) - en.y;
+                const distToPlayer = Math.sqrt(dx*dx + dy*dy);
+                
+                let moveX = (dx / distToPlayer) * en.speed;
+                let moveY = (dy / distToPlayer) * en.speed;
+
+                // --- АНТИ-НАСЛОЕНИЕ (Separation) ---
+                for (let j = 0; j < state.enemies.length; j++) {
+                    if (i === j) continue;
+                    const other = state.enemies[j];
+                    const diffX = en.x - other.x;
+                    const diffY = en.y - other.y;
+                    const distBetween = Math.sqrt(diffX*diffX + diffY*diffY);
+
+                    if (distBetween < CONSTANTS.SEPARATION_DISTANCE) {
+                        const force = (CONSTANTS.SEPARATION_DISTANCE - distBetween) / CONSTANTS.SEPARATION_DISTANCE;
+                        moveX += (diffX / distBetween) * force * CONSTANTS.SEPARATION_FORCE;
+                        moveY += (diffY / distBetween) * force * CONSTANTS.SEPARATION_FORCE;
+                    }
+                }
+
+                // Применяем итоговое движение
+                en.x += moveX * deltaTime;
+                en.y += moveY * deltaTime;
+
+                // Проверка столкновения с мухой
+                if (distToPlayer < en.radius + 15) {
+                    state.gameOver = true;
+                    if (state.score > state.highScore) {
+                        state.highScore = state.score;
+                        saveHighScore(state.highScore);
+                    }
+                }
+            }
+        }
+
+        // ==================== ОТРИСОВКА ====================
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function draw() {
+            ctx.fillStyle = "#0a0a0a";
+            ctx.fillRect(0, 0, 800, 600);
+
+            if (state.gameState === 'MENU') {
+                drawMenu();
+            } else {
+                // Рисуем муху
+                if (!state.gameOver) {
+                    ctx.drawImage(sprites.player, state.player.x, state.player.y, state.player.width, state.player.height);
+                }
+
+                // Рисуем пауков
+                state.enemies.forEach(en => {
+                    ctx.drawImage(sprites.enemy, en.x - en.radius, en.y - en.radius, en.radius * 2, en.radius * 2);
+                });
+
+                // Интерфейс (Таймер и Счет)
+                ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+                ctx.font = "bold 22px Arial";
+                ctx.textAlign = "left";
+                ctx.fillText(`Время: ${state.timeSurvived.toFixed(1)}с`, 20, 40);
+                ctx.fillText(`Счет: ${state.score}`, 20, 70);
+
+                if (state.gameOver) drawGameOver();
+            }
+            requestAnimationFrame(draw);
+        }
+
+        function drawMenu() {
+            ctx.textAlign = "center";
+            ctx.fillStyle = "#00ff00";
+            ctx.font = "bold 60px Arial";
+            ctx.fillText("FLY SURVIVAL", 400, 180);
+            ctx.fillStyle = "#ffdd00";
+            ctx.font = "24px Arial";
+            ctx.fillText(`Рекорд: ${state.highScore}`, 400, 240);
+            ctx.fillStyle = "white";
+            ctx.font = "20px Arial";
+            ctx.fillText("Выбери сложность:", 400, 320);
+            ctx.fillStyle = "#00ccff";
+            ctx.fillText("1: Легко  |  2: Средне  |  3: Хардкор", 400, 360);
+        }
+
+        function drawGameOver() {
+            ctx.fillStyle = "rgba(0,0,0,0.85)";
+            ctx.fillRect(0,0,800,600);
+            ctx.fillStyle = "#ff4444";
+            ctx.textAlign = "center";
+            ctx.font = "bold 50px Arial";
+            ctx.fillText("ИГРА ОКОНЧЕНА", 400, 250);
+            ctx.fillStyle = "white";
+            ctx.font = "24px Arial";
+            ctx.fillText(`Вы продержались ${state.timeSurvived.toFixed(1)} сек!`, 400, 310);
+            ctx.fillText(`Финальный счет: ${state.score}`, 400, 350);
+            ctx.font = "18px Arial";
+            ctx.fillStyle = "#aaa";
+            ctx.fillText("Нажми 'R', чтобы выйти в меню", 400, 420);
+        }
+
+        let lastFrameTime = Date.now();
+        function gameLoop() {
+            const now = Date.now();
+            const deltaTime = (now - lastFrameTime) / 1000;
+            lastFrameTime = now;
+            update(deltaTime);
+            draw();
+        }
+        
+        state.highScore = getHighScore();
+        setInterval(gameLoop, 1000/60); // Стабильные 60 FPS
+    </script>
+</body>
+</html>
