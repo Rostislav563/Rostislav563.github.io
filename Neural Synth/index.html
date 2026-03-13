@@ -1,275 +1,288 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sonic Canvas - Audiovisual Lab</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <title>Sonic Canvas - Визуальный Синтезатор</title>
     <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background: #050505;
-            color: white;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        #ui-layer {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 10;
-            pointer-events: none;
-        }
-
-        .controls {
-            pointer-events: auto;
-            background: rgba(255, 255, 255, 0.1);
-            padding: 15px;
-            border-radius: 8px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .tool-group { margin-bottom: 15px; }
-        
-        button {
-            background: #444;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            margin: 2px;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: 0.3s;
-        }
-
-        button.active { background: #007bff; box-shadow: 0 0 10px #007bff; }
-        button:hover { background: #666; }
-
-        #status {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            font-size: 12px;
-            opacity: 0.6;
-        }
-
+        body, html { margin: 0; overflow: hidden; background: #050505; font-family: sans-serif; }
         canvas { display: block; touch-action: none; }
+        #ui {
+            position: absolute; top: 20px; left: 20px; color: white;
+            background: rgba(0,0,0,0.7); padding: 15px; border-radius: 10px;
+            pointer-events: none; user-select: none;
+        }
+        .controls { pointer-events: auto; margin-top: 10px; }
+        button {
+            background: #444; color: white; border: none; padding: 8px 12px;
+            cursor: pointer; margin-right: 5px; border-radius: 4px;
+        }
+        button:hover { background: #666; }
+        .active { background: #00ff88; color: black; }
+        .label { font-size: 12px; color: #aaa; margin-bottom: 5px; }
     </style>
 </head>
 <body>
 
-    <div id="ui-layer">
-        <div class="controls">
-            <h3>Sonic Canvas</h3>
-            
-            <div class="tool-group">
-                <label>Instrument (Color):</label><br>
-                <button onclick="setInstrument('red')" id="btn-red" style="border-bottom: 3px solid red;" class="active">Aggressive Bass</button>
-                <button onclick="setInstrument('blue')" id="btn-blue" style="border-bottom: 3px solid blue;">Soft Piano</button>
-                <button onclick="setInstrument('yellow')" id="btn-yellow" style="border-bottom: 3px solid yellow;">Bright Synth</button>
-            </div>
-
-            <div class="tool-group">
-                <button onclick="toggleSymmetry()" id="btn-sym">Symmetry: OFF</button>
-                <button onclick="toggleGravity()" id="btn-grav">Gravity Points: OFF</button>
-                <button onclick="startRecording()" id="btn-rec">Record 5s Loop</button>
-                <button onclick="clearCanvas()">Clear (Shake)</button>
-            </div>
-        </div>
+<div id="ui">
+    <h2>Sonic Canvas 1.0</h2>
+    <div class="label">Цвет (Инструмент):</div>
+    <div class="controls">
+        <button onclick="setTool('red')" style="border-bottom: 3px solid red;">Бас</button>
+        <button onclick="setTool('blue')" style="border-bottom: 3px solid blue;">Пианино</button>
+        <button onclick="setTool('yellow')" style="border-bottom: 3px solid yellow;">Синт</button>
     </div>
+    <div class="controls">
+        <button id="symBtn" onclick="toggleSymmetry()">Симметрия: OFF</button>
+        <button id="loopBtn" onclick="toggleLoop()">Запись: OFF</button>
+        <button onclick="clearCanvas()">Встряхнуть (Очистить)</button>
+    </div>
+    <p style="font-size: 10px;">Кликните ПКМ (или Shift+Клик) для создания Магнита</p>
+</div>
 
-    <div id="status">Move mouse/touch to play. Y-axis = Pitch | Speed = Volume</div>
+<canvas id="canvas"></canvas>
 
-    <canvas id="mainCanvas"></canvas>
+<script>
+/** * АУДИО ДВИЖОК
+ */
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const mainGain = audioCtx.createGain();
+mainGain.gain.value = 0.5;
+mainGain.connect(audioCtx.destination);
 
-    <script>
-        // --- Setup & State ---
-        const canvas = document.getElementById('mainCanvas');
-        const ctx = canvas.getContext('2d');
-        let width, height;
-        let isDrawing = false;
-        let currentHue = 0;
-        let selectedColor = 'red';
-        let symmetryMode = false;
-        let gravityEnabled = false;
-        let gravityPoints = [];
-        let particles = [];
-        let isRecording = false;
+// Реверберация/Эхо (Delay)
+const delay = audioCtx.createDelay(2.0);
+const delayGain = audioCtx.createGain();
+delay.delayTime.value = 0.4;
+delayGain.gain.value = 0.3;
+delay.connect(delayGain);
+delayGain.connect(delay);
+delayGain.connect(mainGain);
 
-        // --- Audio Setup (Tone.js) ---
-        const delay = new Tone.FeedbackDelay("16n", 0.5).toDestination();
-        const reverb = new Tone.Reverb(3).connect(delay);
-        
-        // Instruments
-        const instruments = {
-            red: new Tone.MonoSynth({
-                oscillator: { type: "sawtooth" },
-                envelope: { attack: 0.1, release: 1 }
-            }).connect(reverb),
-            
-            blue: new Tone.Sampler({
-                urls: { A1: "https://tonejs.github.io/audio/casio/A1.mp3" }
-            }).connect(reverb),
-            
-            yellow: new Tone.PolySynth(Tone.Synth, {
-                oscillator: { type: "triangle" }
-            }).connect(reverb)
-        };
+// Фоновый шум
+const ambientOsc = audioCtx.createOscillator();
+const ambientGain = audioCtx.createGain();
+ambientOsc.type = 'sine';
+ambientOsc.frequency.value = 100;
+ambientGain.gain.value = 0.05;
+ambientOsc.connect(ambientGain);
+ambientGain.connect(mainGain);
+ambientOsc.start();
 
-        const backgroundVibe = new Tone.NoiseSynth({
-            noise: { type: "pink" },
-            envelope: { attack: 2, release: 2 }
-        }).connect(new Tone.Filter(400, "lowpass")).toDestination();
+/** * ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+ */
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let width, height;
+let drawing = false;
+let currentTool = 'red';
+let symmetry = false;
+let recording = false;
+let recordedPath = [];
+let loopStartTime = 0;
+let points = []; // Линии (эхо-следы)
+let magnets = []; // Гравитационные точки
+let particles = []; // Частицы для магнитов
 
-        // --- Core Functions ---
-        function resize() {
-            width = canvas.width = window.innerWidth;
-            height = canvas.height = window.innerHeight;
-        }
+const tools = {
+    red: { type: 'sawtooth', filter: 400, color: '#ff4d4d' },    // Агрессивный бас
+    blue: { type: 'triangle', filter: 2000, color: '#4d79ff' },  // Мягкое пианино
+    yellow: { type: 'square', filter: 1500, color: '#ffff4d' }  // Яркий синт
+};
 
-        window.addEventListener('resize', resize);
-        resize();
+/**
+ * ИНИЦИАЛИЗАЦИЯ
+ */
+function resize() {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
 
-        function setInstrument(color) {
-            selectedColor = color;
-            document.querySelectorAll('.tool-group button').forEach(b => b.classList.remove('active'));
-            document.getElementById('btn-' + color).classList.add('active');
-        }
+function setTool(color) { currentTool = color; }
+function toggleSymmetry() {
+    symmetry = !symmetry;
+    document.getElementById('symBtn').innerText = `Симметрия: ${symmetry ? 'ON' : 'OFF'}`;
+}
 
-        function toggleSymmetry() {
-            symmetryMode = !symmetryMode;
-            document.getElementById('btn-sym').innerText = `Symmetry: ${symmetryMode ? 'ON' : 'OFF'}`;
-            document.getElementById('btn-sym').classList.toggle('active');
-        }
+/**
+ * ЛОГИКА ЗВУКА
+ */
+function playTone(x, y, speed, toolKey) {
+    const config = tools[toolKey];
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    const filter = audioCtx.createBiquadFilter();
 
-        function toggleGravity() {
-            gravityEnabled = !gravityEnabled;
-            document.getElementById('btn-grav').innerText = `Gravity: ${gravityEnabled ? 'ON' : 'OFF'}`;
-            document.getElementById('btn-grav').classList.toggle('active');
-        }
+    // 1. Изменение высоты по Y
+    const freq = ((height - y) / height) * 800 + 60;
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    osc.type = config.type;
 
-        function clearCanvas() {
-            ctx.fillStyle = 'black';
-            ctx.fillRect(0,0,width,height);
-            particles = [];
-            gravityPoints = [];
-            // Shake effect: explode existing elements logic can go here
-        }
+    filter.type = 'lowpass';
+    filter.frequency.value = config.filter;
 
-        // --- Interaction & Loops ---
-        canvas.addEventListener('mousedown', (e) => {
-            Tone.start();
-            isDrawing = true;
-            backgroundVibe.triggerAttack();
-            if(gravityEnabled) gravityPoints.push({x: e.clientX, y: e.clientY});
+    // 4. Скорость-громкость
+    const vol = Math.min(speed / 50, 0.8);
+    g.gain.setValueAtTime(vol, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
+
+    osc.connect(filter);
+    filter.connect(g);
+    g.connect(mainGain);
+    g.connect(delay); // 3. Эхо-следы (звуковая часть)
+
+    osc.start();
+    osc.stop(audioCtx.currentTime + 1.5);
+}
+
+/**
+ * ОБРАБОТКА ВВОДА
+ */
+canvas.addEventListener('mousedown', e => {
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    if(e.button === 2 || e.shiftKey) {
+        magnets.push({x: e.clientX, y: e.clientY}); // 5. Гравитация
+        return;
+    }
+    drawing = true;
+    handleMove(e);
+});
+
+window.addEventListener('mouseup', () => drawing = false);
+window.addEventListener('mousemove', handleMove);
+
+// 9. Встряхивание (имитация кнопкой или резким движением)
+window.addEventListener('devicemotion', (e) => {
+    const acc = e.accelerationIncludingGravity;
+    if(Math.abs(acc.x) > 25) clearCanvas();
+});
+
+function handleMove(e) {
+    if (!drawing) return;
+
+    const speed = Math.sqrt(Math.pow(e.movementX, 2) + Math.pow(e.movementY, 2));
+    const drawPoint = (tx, ty) => {
+        points.push({
+            x: tx, y: ty,
+            vx: e.movementX, vy: e.movementY,
+            life: 1.0, color: tools[currentTool].color,
+            osc: speed // 7. Волнообразная кисть
         });
+        playTone(tx, ty, speed, currentTool);
+    };
 
-        window.addEventListener('mouseup', () => {
-            isDrawing = false;
-            backgroundVibe.triggerRelease();
-        });
+    drawPoint(e.clientX, e.clientY);
 
-        canvas.addEventListener('mousemove', (e) => {
-            if (!isDrawing) return;
-            handleInput(e.clientX, e.clientY, e.movementX, e.movementY);
-        });
+    // 6. Режим симметрии (4 направления)
+    if (symmetry) {
+        drawPoint(width - e.clientX, e.clientY);
+        drawPoint(e.clientX, height - e.clientY);
+        drawPoint(width - e.clientX, height - e.clientY);
+    }
 
-        function handleInput(x, y, dx, dy) {
-            // 1. Pitch-on-Y
-            const pitch = Tone.Frequency(mapRange(y, height, 0, 100, 1000)).quantize("8n");
-            
-            // 4. Speed-Volume
-            const speed = Math.sqrt(dx*dx + dy*dy);
-            const vol = mapRange(speed, 0, 50, -40, 0);
-            
-            const inst = instruments[selectedColor];
-            inst.volume.value = vol;
-            inst.triggerAttackRelease(pitch, "16n");
+    // 8. Запись для лупера
+    if (recording) {
+        recordedPath.push({x: e.clientX, y: e.clientY, tool: currentTool, time: Date.now() - loopStartTime});
+    }
+}
 
-            // Create Visual Particle
-            particles.push(new Particle(x, y, selectedColor, speed));
-            
-            if (symmetryMode) {
-                particles.push(new Particle(width - x, y, selectedColor, speed));
-                particles.push(new Particle(x, height - y, selectedColor, speed));
-                particles.push(new Particle(width - x, height - y, selectedColor, speed));
+/**
+ * ЛУПЕР (8)
+ */
+function toggleLoop() {
+    if (!recording) {
+        recordedPath = [];
+        loopStartTime = Date.now();
+        recording = true;
+        document.getElementById('loopBtn').classList.add('active');
+        setTimeout(() => {
+            recording = false;
+            document.getElementById('loopBtn').classList.remove('active');
+            if(recordedPath.length > 0) startLoopPlayback();
+        }, 5000);
+    }
+}
+
+function startLoopPlayback() {
+    recordedPath.forEach(p => {
+        setTimeout(() => {
+            if (recordedPath.length > 0) {
+                playTone(p.x, p.y, 10, p.tool);
+                points.push({x: p.x, y: p.y, life: 0.5, color: tools[p.tool].color, osc: 5});
             }
+        }, p.time);
+    });
+    setTimeout(startLoopPlayback, 5000);
+}
+
+/**
+ * ОЧИСТКА (9)
+ */
+function clearCanvas() {
+    points.forEach(p => { p.vx = (Math.random()-0.5)*20; p.vy = (Math.random()-0.5)*20; });
+    setTimeout(() => { points = []; magnets = []; recordedPath = []; }, 500);
+}
+
+/**
+ * ГЛАВНЫЙ ЦИКЛ АНИМАЦИИ
+ */
+function update() {
+    // Полупрозрачный фон для эффекта шлейфа
+    ctx.fillStyle = 'rgba(5, 5, 5, 0.2)';
+    ctx.fillRect(0, 0, width, height);
+
+    // 10. Фоновая атмосфера (зависит от кол-ва точек)
+    ambientGain.gain.setTargetAtTime(Math.min(points.length / 500, 0.2), audioCtx.currentTime, 0.1);
+
+    // 3. Рисование и затухание следов
+    points.forEach((p, i) => {
+        p.life -= 0.01;
+        if (p.life <= 0) points.splice(i, 1);
+
+        // 7. Кисть-осциллограмма
+        const wave = Math.sin(Date.now() * 0.1) * (p.osc * 0.5);
+        ctx.beginPath();
+        ctx.strokeStyle = p.color;
+        ctx.globalAlpha = p.life;
+        ctx.lineWidth = p.life * 10;
+        ctx.moveTo(p.x - p.vx, p.y - p.vy);
+        ctx.lineTo(p.x + wave, p.y + wave);
+        ctx.stroke();
+
+        p.x += p.vx * 0.1;
+        p.y += p.vy * 0.1;
+    });
+
+    // 5. Гравитационные частицы
+    magnets.forEach(m => {
+        ctx.fillStyle = 'white';
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, 3, 0, Math.PI*2);
+        ctx.fill();
+
+        // Создаем искру вокруг магнита
+        if (Math.random() > 0.8) {
+            particles.push({x: m.x, y: m.y, angle: Math.random() * Math.PI * 2, r: 50, color: 'cyan'});
         }
+    });
 
-        // --- Animation Loop ---
-        class Particle {
-            constructor(x, y, color, speed) {
-                this.x = x; this.y = y;
-                this.color = color;
-                this.life = 1.0;
-                this.decay = 0.01; // 3. Echo Trails
-                this.size = speed * 2;
-            }
+    particles.forEach((prt, i) => {
+        prt.angle += 0.05;
+        prt.r -= 0.5;
+        const px = prt.x + Math.cos(prt.angle) * prt.r;
+        const py = prt.y + Math.sin(prt.angle) * prt.r;
+        ctx.fillStyle = prt.color;
+        ctx.fillRect(px, py, 2, 2);
+        if(prt.r <= 0) particles.splice(i, 1);
+    });
 
-            draw() {
-                ctx.beginPath();
-                ctx.strokeStyle = this.color;
-                ctx.globalAlpha = this.life;
-                ctx.lineWidth = this.size;
-                // 7. Waveform Brush (simplified jitter)
-                const jitter = Math.sin(Date.now() * 0.1) * 5;
-                ctx.lineTo(this.x + jitter, this.y + jitter);
-                ctx.stroke();
-            }
+    requestAnimationFrame(update);
+}
 
-            update() {
-                this.life -= this.decay;
-            }
-        }
+canvas.oncontextmenu = (e) => e.preventDefault();
+update();
+</script>
 
-        function animate() {
-            // 3. Echo Trails (Don't clear fully)
-            ctx.fillStyle = 'rgba(5, 5, 5, 0.1)';
-            ctx.fillRect(0, 0, width, height);
-
-            particles = particles.filter(p => p.life > 0);
-            particles.forEach(p => {
-                p.update();
-                p.draw();
-            });
-
-            // 5. Gravity Loops
-            if (gravityPoints.length > 0) {
-                ctx.fillStyle = 'white';
-                gravityPoints.forEach(p => ctx.fillRect(p.x, p.y, 4, 4));
-            }
-
-            requestAnimationFrame(animate);
-        }
-
-        animate();
-
-        // Helper
-        function mapRange(val, inMin, inMax, outMin, outMax) {
-            return (val - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
-        }
-
-        // 8. Record & Loop (Mock implementation)
-        function startRecording() {
-            const btn = document.getElementById('btn-rec');
-            btn.innerText = "RECORDING...";
-            btn.style.color = "red";
-            setTimeout(() => {
-                btn.innerText = "Looping Playback";
-                btn.style.color = "cyan";
-                // In a real app, you'd push these events to Tone.Part
-            }, 5000);
-        }
-
-        // 9. Shake to Clear (Device Motion)
-        window.addEventListener('devicemotion', (e) => {
-            const acc = e.accelerationIncludingGravity;
-            if (Math.abs(acc.x) + Math.abs(acc.y) > 30) clearCanvas();
-        });
-
-    </script>
 </body>
 </html>
