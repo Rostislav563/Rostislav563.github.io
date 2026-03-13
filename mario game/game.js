@@ -6,6 +6,7 @@ const scoreEl = document.getElementById('score');
 const coinsEl = document.getElementById('coins');
 const timeEl = document.getElementById('time');
 const livesEl = document.getElementById('lives');
+const worldEl = document.getElementById('world');
 const overlay = document.getElementById('overlay');
 const startBtn = document.getElementById('startBtn');
 
@@ -38,6 +39,7 @@ let clock = 400;
 let score = 0;
 let coins = 0;
 let lives = 3;
+let level = '1-1';
 let reverseMode = false;
 let routePhase = 1;
 
@@ -809,6 +811,7 @@ function resetRun() {
 function updateHud() {
   scoreEl.textContent = String(score).padStart(6, '0');
   coinsEl.textContent = String(coins).padStart(2, '0');
+  worldEl.textContent = level;
   timeEl.textContent = String(Math.max(0, clock));
   livesEl.textContent = String(lives);
 }

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sonic Canvas - Audiovisual Lab</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #050505;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .controls {
+            pointer-events: auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .tool-group { margin-bottom: 15px; }
+        
+        button {
+            background: #444;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            margin: 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: 0.3s;
+        }
+
+        button.active { background: #007bff; box-shadow: 0 0 10px #007bff; }
+        button:hover { background: #666; }
+
+        #status {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-size: 12px;
+            opacity: 0.6;
+        }
+
+        canvas { display: block; touch-action: none; }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div class="controls">
+            <h3>Sonic Canvas</h3>
+            
+            <div class="tool-group">
+                <label>Instrument (Color):</label><br>
+                <button onclick="setInstrument('red')" id="btn-red" style="border-bottom: 3px solid red;" class="active">Aggressive Bass</button>
+                <button onclick="setInstrument('blue')" id="btn-blue" style="border-bottom: 3px solid blue;">Soft Piano</button>
+                <button onclick="setInstrument('yellow')" id="btn-yellow" style="border-bottom: 3px solid yellow;">Bright Synth</button>
+            </div>
+
+            <div class="tool-group">
+                <button onclick="toggleSymmetry()" id="btn-sym">Symmetry: OFF</button>
+                <button onclick="toggleGravity()" id="btn-grav">Gravity Points: OFF</button>
+                <button onclick="startRecording()" id="btn-rec">Record 5s Loop</button>
+                <button onclick="clearCanvas()">Clear (Shake)</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="status">Move mouse/touch to play. Y-axis = Pitch | Speed = Volume</div>
+
+    <canvas id="mainCanvas"></canvas>
+
+    <script>
+        // --- Setup & State ---
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let isDrawing = false;
+        let currentHue = 0;
+        let selectedColor = 'red';
+        let symmetryMode = false;
+        let gravityEnabled = false;
+        let gravityPoints = [];
+        let particles = [];
+        let isRecording = false;
+
+        // --- Audio Setup (Tone.js) ---
+        const delay = new Tone.FeedbackDelay("16n", 0.5).toDestination();
+        const reverb = new Tone.Reverb(3).connect(delay);
+        
+        // Instruments
+        const instruments = {
+            red: new Tone.MonoSynth({
+                oscillator: { type: "sawtooth" },
+                envelope: { attack: 0.1, release: 1 }
+            }).connect(reverb),
+            
+            blue: new Tone.Sampler({
+                urls: { A1: "https://tonejs.github.io/audio/casio/A1.mp3" }
+            }).connect(reverb),
+            
+            yellow: new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: "triangle" }
+            }).connect(reverb)
+        };
+
+        const backgroundVibe = new Tone.NoiseSynth({
+            noise: { type: "pink" },
+            envelope: { attack: 2, release: 2 }
+        }).connect(new Tone.Filter(400, "lowpass")).toDestination();
+
+        // --- Core Functions ---
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        function setInstrument(color) {
+            selectedColor = color;
+            document.querySelectorAll('.tool-group button').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-' + color).classList.add('active');
+        }
+
+        function toggleSymmetry() {
+            symmetryMode = !symmetryMode;
+            document.getElementById('btn-sym').innerText = `Symmetry: ${symmetryMode ? 'ON' : 'OFF'}`;
+            document.getElementById('btn-sym').classList.toggle('active');
+        }
+
+        function toggleGravity() {
+            gravityEnabled = !gravityEnabled;
+            document.getElementById('btn-grav').innerText = `Gravity: ${gravityEnabled ? 'ON' : 'OFF'}`;
+            document.getElementById('btn-grav').classList.toggle('active');
+        }
+
+        function clearCanvas() {
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0,0,width,height);
+            particles = [];
+            gravityPoints = [];
+            // Shake effect: explode existing elements logic can go here
+        }
+
+        // --- Interaction & Loops ---
+        canvas.addEventListener('mousedown', (e) => {
+            Tone.start();
+            isDrawing = true;
+            backgroundVibe.triggerAttack();
+            if(gravityEnabled) gravityPoints.push({x: e.clientX, y: e.clientY});
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDrawing = false;
+            backgroundVibe.triggerRelease();
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+            handleInput(e.clientX, e.clientY, e.movementX, e.movementY);
+        });
+
+        function handleInput(x, y, dx, dy) {
+            // 1. Pitch-on-Y
+            const pitch = Tone.Frequency(mapRange(y, height, 0, 100, 1000)).quantize("8n");
+            
+            // 4. Speed-Volume
+            const speed = Math.sqrt(dx*dx + dy*dy);
+            const vol = mapRange(speed, 0, 50, -40, 0);
+            
+            const inst = instruments[selectedColor];
+            inst.volume.value = vol;
+            inst.triggerAttackRelease(pitch, "16n");
+
+            // Create Visual Particle
+            particles.push(new Particle(x, y, selectedColor, speed));
+            
+            if (symmetryMode) {
+                particles.push(new Particle(width - x, y, selectedColor, speed));
+                particles.push(new Particle(x, height - y, selectedColor, speed));
+                particles.push(new Particle(width - x, height - y, selectedColor, speed));
+            }
+        }
+
+        // --- Animation Loop ---
+        class Particle {
+            constructor(x, y, color, speed) {
+                this.x = x; this.y = y;
+                this.color = color;
+                this.life = 1.0;
+                this.decay = 0.01; // 3. Echo Trails
+                this.size = speed * 2;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.strokeStyle = this.color;
+                ctx.globalAlpha = this.life;
+                ctx.lineWidth = this.size;
+                // 7. Waveform Brush (simplified jitter)
+                const jitter = Math.sin(Date.now() * 0.1) * 5;
+                ctx.lineTo(this.x + jitter, this.y + jitter);
+                ctx.stroke();
+            }
+
+            update() {
+                this.life -= this.decay;
+            }
+        }
+
+        function animate() {
+            // 3. Echo Trails (Don't clear fully)
+            ctx.fillStyle = 'rgba(5, 5, 5, 0.1)';
+            ctx.fillRect(0, 0, width, height);
+
+            particles = particles.filter(p => p.life > 0);
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+
+            // 5. Gravity Loops
+            if (gravityPoints.length > 0) {
+                ctx.fillStyle = 'white';
+                gravityPoints.forEach(p => ctx.fillRect(p.x, p.y, 4, 4));
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+
+        // Helper
+        function mapRange(val, inMin, inMax, outMin, outMax) {
+            return (val - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
+        }
+
+        // 8. Record & Loop (Mock implementation)
+        function startRecording() {
+            const btn = document.getElementById('btn-rec');
+            btn.innerText = "RECORDING...";
+            btn.style.color = "red";
+            setTimeout(() => {
+                btn.innerText = "Looping Playback";
+                btn.style.color = "cyan";
+                // In a real app, you'd push these events to Tone.Part
+            }, 5000);
+        }
+
+        // 9. Shake to Clear (Device Motion)
+        window.addEventListener('devicemotion', (e) => {
+            const acc = e.accelerationIncludingGravity;
+            if (Math.abs(acc.x) + Math.abs(acc.y) > 30) clearCanvas();
+        });
+
+    </script>
+</body>
+</html>
