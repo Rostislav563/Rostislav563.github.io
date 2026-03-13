@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VOID_ENGINE // PURPLE_ERROR</title>
+    <link href="https://fonts.googleapis.com/css2?family=Metal+Mania&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-purple: #bc13fe;
+            --deep-violet: #4b0082;
+            --void-magenta: #ff00ff;
+            --dark-bg: #05000a;
+        }
+
+        body { 
+            margin: 0; 
+            background: var(--dark-bg); 
+            color: var(--neon-purple); 
+            font-family: 'Share Tech Mono', monospace; 
+            overflow: hidden; 
+            text-transform: uppercase;
+        }
+
+        h1 { 
+            font-family: 'Metal Mania', cursive; 
+            font-size: 2.5rem;
+            margin: 0;
+            text-shadow: 0 0 15px var(--neon-purple);
+            color: var(--void-magenta);
+        }
+
+        canvas { 
+            display: block; 
+            filter: contrast(1.3) saturate(1.5);
+        }
+
+        .ui-panel { 
+            position: absolute; 
+            top: 20px; 
+            left: 20px; 
+            z-index: 100; 
+            background: rgba(10, 0, 20, 0.85); 
+            padding: 25px; 
+            border: 1px solid var(--deep-violet);
+            border-left: 4px solid var(--neon-purple);
+            box-shadow: 0 0 30px rgba(188, 19, 254, 0.15);
+            width: 300px;
+            backdrop-filter: blur(5px);
+        }
+
+        .control-group { margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed var(--deep-violet); }
+
+        button { 
+            background: rgba(75, 0, 130, 0.2); 
+            color: var(--void-magenta); 
+            border: 1px solid var(--neon-purple); 
+            padding: 10px; 
+            margin: 5px 0;
+            cursor: pointer; 
+            font-family: 'Share Tech Mono', monospace;
+            transition: 0.2s;
+            width: 100%;
+            text-align: left;
+            letter-spacing: 1px;
+        }
+
+        button:hover { 
+            background: var(--neon-purple); 
+            color: #000; 
+            box-shadow: 0 0 20px var(--neon-purple);
+        }
+
+        button.active {
+            background: var(--void-magenta);
+            color: #fff;
+            box-shadow: 0 0 20px var(--void-magenta);
+        }
+
+        .upload-label {
+            display: block;
+            background: var(--neon-purple);
+            color: #000;
+            padding: 12px;
+            text-align: center;
+            font-weight: bold;
+            cursor: pointer;
+            margin-bottom: 20px;
+            clip-path: polygon(0% 0%, 90% 0%, 100% 50%, 90% 100%, 0% 100%);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--void-magenta);
+            background: #1a0033;
+        }
+
+        .status-bar {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: rgba(188, 19, 254, 0.05);
+            font-size: 11px;
+            padding: 8px;
+            border-top: 1px solid var(--deep-violet);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Scanline Overlay */
+        .scanlines {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(50, 0, 80, 0.1) 50%);
+            background-size: 100% 4px;
+            z-index: 50;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="scanlines"></div>
+
+<div class="ui-panel">
+    <h1>VOID_ENGINE</h1>
+    <p style="font-size: 10px; color: var(--neon-purple); opacity: 0.6;">MODULE: NULL_PURPLE</p>
+    
+    <label class="upload-label" for="fileInput">INSERT_IMAGE.DATA</label>
+    <input type="file" id="fileInput" accept="image/*">
+
+    <div class="control-group">
+        <button id="micBtn" onclick="initAudio()">INIT_VORTEX_AUDIO</button>
+    </div>
+
+    <div class="control-group">
+        <button id="asciiBtn" onclick="toggleEffect('ascii')">ASCII_STREAM</button>
+        <button id="mirrorBtn" onclick="toggleEffect('mirror')">MIRROR_VORTEX</button>
+        <button id="freezeBtn" onclick="toggleEffect('freeze')">STASIS_FRAME</button>
+    </div>
+
+    <div class="control-group">
+        <label>SORT_INTENSITY</label>
+        <input type="range" id="sortRange" min="0" max="255" value="130">
+    </div>
+
+    <button onclick="chaosSave()" style="border-color: #fff; color: #fff; background: rgba(255,255,255,0.1);">EXECUTE_SAVE</button>
+</div>
+
+<div class="status-bar">
+    <div>CORE_FREQ: <span id="noiseVal">0%</span></div>
+    <div>CURSOR_COORD: <span id="mouseVal">0,0</span></div>
+    <div style="color: var(--void-magenta);">SYSTEM_ONLINE</div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    let width, height;
+    let userImg = null;
+    let audioContext, analyser, dataArray;
+    let isAudioInit = false;
+    let frameCount = 0;
+
+    let effects = {
+        ascii: false,
+        mirror: false,
+        freeze: false,
+        mouseX: 0,
+        mouseY: 0
+    };
+
+    let freezeBuffer = null;
+
+    // Image Loader
+    document.getElementById('fileInput').onchange = function(e) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const img = new Image();
+            img.onload = function() {
+                userImg = img;
+                resizeCanvas();
+            }
+            img.src = event.target.result;
+        }
+        reader.readAsDataURL(e.target.files[0]);
+    };
+
+    function resizeCanvas() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+    }
+
+    async function initAudio() {
+        try {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const source = audioContext.createMediaStreamSource(stream);
+            analyser = audioContext.createAnalyser();
+            source.connect(analyser);
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            isAudioInit = true;
+            document.getElementById('micBtn').classList.add('active');
+            document.getElementById('micBtn').innerText = "AUDIO_CAPTURING";
+        } catch(e) { alert("Mic Access Denied."); }
+    }
+
+    function toggleEffect(type) {
+        effects[type] = !effects[type];
+        document.getElementById(type + 'Btn').classList.toggle('active');
+        if(type === 'freeze') freezeBuffer = ctx.getImageData(0,0, width, height);
+    }
+
+    function loop() {
+        frameCount++;
+        ctx.globalAlpha = 0.9; 
+
+        if (userImg) {
+            if (effects.freeze && freezeBuffer) {
+                ctx.putImageData(freezeBuffer, 0, 0);
+            } else {
+                ctx.drawImage(userImg, 0, 0, width, height);
+            }
+
+            let imageData = ctx.getImageData(0, 0, width, height);
+            let pixels = imageData.data;
+
+            let volume = 0;
+            if (isAudioInit) {
+                analyser.getByteFrequencyData(dataArray);
+                volume = dataArray.reduce((a, b) => a + b) / dataArray.length;
+            }
+
+            // 1. Purple-Shifted RGB Split
+            applyPurpleSplit(pixels, volume);
+
+            // 3. Pixel Sorting
+            if (frameCount % 2 === 0) applyPixelSort(pixels);
+
+            ctx.putImageData(imageData, 0, 0);
+
+            // 7. Mirror Dimension
+            if (effects.mirror) applyMirror();
+
+            // 5 & 6. Noise and Scanlines
+            applyPurpleVHS(volume);
+
+            // 9. ASCII Mode (Purple characters)
+            if (effects.ascii) applyASCII();
+
+            document.getElementById('noiseVal').innerText = Math.floor(volume) + "%";
+        }
+
+        requestAnimationFrame(loop);
+    }
+
+    function applyPurpleSplit(pixels, volume) {
+        let shift = Math.floor((effects.mouseX / width) * 50) + (volume / 2);
+        for (let i = 0; i < pixels.length; i += 4) {
+            // We shift channels but keep colors in purple range
+            pixels[i] = pixels[i + Math.floor(shift * 4)] || pixels[i]; // Red (component of purple)
+            pixels[i + 1] = pixels[i+1] * 0.2; // Severely reduce green
+            pixels[i + 2] = pixels[i - Math.floor(shift * 4)] || pixels[i + 2]; // Blue (component of purple)
+        }
+    }
+
+    function applyPixelSort(pixels) {
+        const threshold = document.getElementById('sortRange').value;
+        for (let i = 0; i < pixels.length; i += 1200) {
+            let b = (pixels[i] + pixels[i+2]) / 2;
+            if (b > threshold) {
+                pixels.copyWithin(i, i + 8, i + 24);
+            }
+        }
+    }
+
+    function applyPurpleVHS(volume) {
+        // Random Purple Spikes
+        if(Math.random() > 0.95 || volume > 50) {
+            ctx.fillStyle = `rgba(188, 19, 254, ${Math.random() * 0.3})`;
+            ctx.fillRect(0, Math.random()*height, width, Math.random()*10);
+        }
+    }
+
+    function applyMirror() {
+        ctx.save();
+        ctx.translate(width/2, height/2);
+        ctx.rotate(frameCount * 0.005);
+        ctx.scale(-1, 1);
+        ctx.drawImage(canvas, -width/2, -height/2);
+        ctx.restore();
+    }
+
+    function applyASCII() {
+        const chars = "XV†‡*:. "; 
+        const size = 10;
+        ctx.font = size + "px 'Share Tech Mono'";
+        let temp = ctx.getImageData(0,0, width, height);
+        ctx.fillStyle = "#05000a";
+        ctx.fillRect(0,0, width, height);
+        
+        for(let y=0; y<height; y+=size) {
+            for(let x=0; x<width; x+=size) {
+                let i = (y * width + x) * 4;
+                let avg = (temp.data[i] + temp.data[i+2])/2;
+                ctx.fillStyle = `rgb(${avg}, 20, ${avg + 50})`;
+                ctx.fillText(chars[Math.floor((avg/255)*7)], x, y);
+            }
+        }
+    }
+
+    function chaosSave() {
+        // 10. Chaos Save Artifact
+        ctx.fillStyle = "white";
+        ctx.font = "italic 40px 'Share Tech Mono'";
+        ctx.fillText("VOID_EXTRACTED_" + Date.now(), 50, height - 100);
+        
+        const link = document.createElement('a');
+        link.download = `VOID_LOG_${Date.now()}.png`;
+        link.href = canvas.toDataURL();
+        link.click();
+    }
+
+    window.addEventListener('mousemove', (e) => {
+        effects.mouseX = e.clientX;
+        effects.mouseY = e.clientY;
+        document.getElementById('mouseVal').innerText = `${e.clientX},${e.clientY}`;
+    });
+
+    window.onload = () => {
+        resizeCanvas();
+        loop();
+    };
+    window.onresize = resizeCanvas;
+</script>
+
+</body>
+</html>

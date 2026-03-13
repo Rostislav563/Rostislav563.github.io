@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual FX Studio - Final</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Visual FX Studio</h1>
+            <div class="upload-section">
+                <label for="imageLoader" class="btn-upload">Choose Photo</label>
+                <input type="file" id="imageLoader" accept="image/*">
+            </div>
+        </header>
+
+        <div id="stage" class="stage">
+            <div id="visual-target" class="object">
+                <span id="msg">Upload an image to begin</span>
+            </div>
+        </div>
+
+        <div class="controls" id="controls"></div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
