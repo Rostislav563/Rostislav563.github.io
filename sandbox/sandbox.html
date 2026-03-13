@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Particle Sandbox</title>
+    <style>
+        body { margin: 0; background: #0a0a0a; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+        .toolbar { background: #1a1a1b; padding: 10px 20px; display: flex; gap: 15px; align-items: center; border-bottom: 1px solid #333; flex-wrap: wrap; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .group { display: flex; flex-direction: column; gap: 4px; }
+        label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #888; }
+        canvas { flex-grow: 1; background: #000; cursor: crosshair; }
+        select, button, input[type="range"] { background: #2a2a2c; border: 1px solid #444; color: white; padding: 6px 10px; border-radius: 4px; font-size: 13px; outline: none; }
+        button { cursor: pointer; transition: all 0.2s; min-width: 80px; }
+        button:hover { background: #3a3a3c; border-color: #666; }
+        button.active { background: #3498db; border-color: #5dade2; box-shadow: 0 0 10px rgba(52, 152, 219, 0.5); }
+        .stats { position: absolute; bottom: 10px; left: 10px; font-size: 12px; color: #555; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<div class="toolbar">
+    <div class="group">
+        <label>Material</label>
+        <select id="matType">
+            <option value="sand">Sand (Collapses)</option>
+            <option value="water">Water (Flows)</option>
+            <option value="gas">Gas (Rises)</option>
+        </select>
+    </div>
+    <div class="group">
+        <label>Brush Mode</label>
+        <select id="brushMode">
+            <option value="spawn">Scatter Particles</option>
+            <option value="attract">Attract Force</option>
+            <option value="repel">Repel Force</option>
+        </select>
+    </div>
+    <div class="group">
+        <label>Global Wind</label>
+        <input type="range" id="wind" min="-1" max="1" step="0.1" value="0">
+    </div>
+    <button id="organizeBtn">Organize: LOGO</button>
+    <button id="heatBtn">Heat Map</button>
+    <button id="freezeBtn">Freeze Time</button>
+    <button onclick="clearSandbox()" style="color: #e74c3c;">Clear</button>
+</div>
+
+<canvas id="canvas"></canvas>
+<div class="stats" id="particleCount">Particles: 0</div>
+
+<script>
+/**
+ * 10-Feature Particle Sandbox
+ * Core: Cellular Automata Grid
+ */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d', { alpha: false });
+const pCountDisplay = document.getElementById('particleCount');
+
+const CELL_SIZE = 4;
+let cols, rows;
+let grid = [];
+let isPaused = false;
+let useHeatMap = false;
+const particleLife = 10000; // 8. Life & Death: 10 Seconds
+
+const palette = {
+    sand: [230, 190, 120],
+    water: [50, 150, 250],
+    gas: [180, 100, 255]
+};
+
+// 5. Collision Sounds (Procedural)
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playImpact(volume) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const bufSize = audioCtx.sampleRate * 0.05;
+    const buffer = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 400;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(volume * 0.02, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioCtx.destination);
+    noise.start();
+}
+
+class Particle {
+    constructor(type, r, g, b) {
+        this.type = type;
+        this.r = r; this.g = g; this.b = b;
+        this.born = Date.now();
+        this.modified = false;
+    }
+}
+
+function init() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight - 60;
+    cols = Math.floor(canvas.width / CELL_SIZE);
+    rows = Math.floor(canvas.height / CELL_SIZE);
+    grid = Array(cols).fill().map(() => Array(rows).fill(null));
+}
+
+// 1. Brush Physics & 3. Attract/Repel
+function handleInput(x, y) {
+    const c = Math.floor(x / CELL_SIZE);
+    const r = Math.floor(y / CELL_SIZE);
+    const type = document.getElementById('matType').value;
+    const mode = document.getElementById('brushMode').value;
+
+    for (let i = -3; i <= 3; i++) {
+        for (let j = -3; j <= 3; j++) {
+            const nc = c + i; const nr = r + j;
+            if (nc < 0 || nc >= cols || nr < 0 || nr >= rows) continue;
+
+            if (mode === 'spawn') {
+                if (!grid[nc][nr] && Math.random() > 0.6) {
+                    grid[nc][nr] = new Particle(type, ...palette[type]);
+                }
+            } else {
+                // 3. Force logic: just nudge or delete
+                if (grid[nc][nr]) {
+                    if (mode === 'repel' && Math.random() > 0.8) grid[nc][nr] = null;
+                    else if (mode === 'attract') grid[nc][nr].born -= 50; // Age them faster as a "pull" effect
+                }
+            }
+        }
+    }
+}
+
+function updatePhysics() {
+    if (isPaused) return;
+    const wind = parseFloat(document.getElementById('wind').value);
+    let count = 0;
+
+    // Iterate bottom-up to prevent double-processing falling particles
+    for (let y = rows - 1; y >= 0; y--) {
+        for (let x = 0; x < cols; x++) {
+            const p = grid[x][y];
+            if (!p || p.modified) continue;
+
+            // 8. Life & Death check
+            if (Date.now() - p.born > particleLife) {
+                grid[x][y] = null;
+                continue;
+            }
+            count++;
+
+            const moveDir = p.type === 'gas' ? -1 : 1;
+            const nextY = y + moveDir;
+            const windShift = Math.random() < Math.abs(wind) ? (wind > 0 ? 1 : -1) : 0;
+            const nextX = x + windShift;
+
+            // 2. Material Behaviors
+            if (nextY >= 0 && nextY < rows) {
+                // Try move straight (with wind)
+                if (isValid(nextX, nextY) && !grid[nextX][nextY]) {
+                    moveParticle(x, y, nextX, nextY);
+                } 
+                // Diagonal fall
+                else if (isValid(nextX - 1, nextY) && !grid[nextX - 1][nextY]) {
+                    moveParticle(x, y, nextX - 1, nextY);
+                }
+                else if (isValid(nextX + 1, nextY) && !grid[nextX + 1][nextY]) {
+                    moveParticle(x, y, nextX + 1, nextY);
+                }
+                // 2. Water/Gas Flow
+                else if (p.type !== 'sand') {
+                    const side = Math.random() > 0.5 ? 1 : -1;
+                    if (isValid(x + side, y) && !grid[x + side][y]) {
+                        moveParticle(x, y, x + side, y);
+                    }
+                } 
+                // 4. Color Fusion on collision
+                else if (grid[nextX] && grid[nextX][nextY]) {
+                    const other = grid[nextX][nextY];
+                    if (other.type !== p.type) {
+                        p.r = (p.r + other.r) / 2;
+                        p.g = (p.g + other.g) / 2;
+                        p.b = (p.b + other.b) / 2;
+                        if (Math.random() > 0.98) playImpact(0.1);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Reset modification flag
+    for (let x = 0; x < cols; x++) {
+        for (let y = 0; y < rows; y++) {
+            if (grid[x][y]) grid[x][y].modified = false;
+        }
+    }
+    pCountDisplay.innerText = `Particles: ${count}`;
+}
+
+function isValid(x, y) { return x >= 0 && x < cols && y >= 0 && y < rows; }
+
+function moveParticle(x1, y1, x2, y2) {
+    grid[x2][y2] = grid[x1][y1];
+    grid[x2][y2].modified = true;
+    grid[x1][y1] = null;
+}
+
+function render() {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    for (let x = 0; x < cols; x++) {
+        for (let y = 0; y < rows; y++) {
+            const p = grid[x][y];
+            if (p) {
+                // 9. Heat Map
+                if (useHeatMap) {
+                    const heat = (y / rows) * 255;
+                    ctx.fillStyle = `rgb(255, ${255 - heat}, 0)`;
+                } else {
+                    ctx.fillStyle = `rgb(${p.r}, ${p.g}, ${p.b})`;
+                }
+                ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            }
+        }
+    }
+    updatePhysics();
+    requestAnimationFrame(render);
+}
+
+// 6. Self-Organization
+document.getElementById('organizeBtn').onclick = () => {
+    clearSandbox();
+    ctx.fillStyle = "white";
+    ctx.font = "bold 120px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("LOGO", canvas.width/2, canvas.height/2 + 40);
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    for (let x = 0; x < cols; x++) {
+        for (let y = 0; y < rows; y++) {
+            const i = (y * CELL_SIZE * canvas.width + x * CELL_SIZE) * 4;
+            if (data[i] > 128) {
+                grid[x][y] = new Particle('sand', 255, 255, 255);
+            }
+        }
+    }
+};
+
+// Controls
+let isDrawing = false;
+canvas.onmousedown = (e) => { isDrawing = true; handleInput(e.offsetX, e.offsetY); };
+canvas.onmousemove = (e) => { if (isDrawing) handleInput(e.offsetX, e.offsetY); };
+window.onmouseup = () => isDrawing = false;
+
+document.getElementById('freezeBtn').onclick = function() {
+    isPaused = !isPaused;
+    this.classList.toggle('active');
+    this.innerText = isPaused ? "Resume" : "Freeze Time"; // 10. Time Freeze
+};
+
+document.getElementById('heatBtn').onclick = function() {
+    useHeatMap = !useHeatMap;
+    this.classList.toggle('active');
+};
+
+function clearSandbox() {
+    grid = Array(cols).fill().map(() => Array(rows).fill(null));
+}
+
+window.onresize = init;
+init();
+render();
+
+</script>
+</body>
+</html>
