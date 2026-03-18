@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Puzzle - Cut Pictures into Puzzles</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <div class="header-content">
+                <h1>🧩 Pixel Puzzle</h1>
+                <div class="header-right">
+                    <div id="timerDisplay" class="timer-display">⏱️ 00:00</div>
+                    <div id="recordsDisplay" class="records-display">🏆 No records</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Top Control Panel -->
+        <div class="control-panel">
+            <div class="control-left">
+                <div class="difficulty-section">
+                    <label for="difficulty">Difficulty:</label>
+                    <select id="difficulty" class="difficulty-select">
+                        <option value="easy">Easy (3x3)</option>
+                        <option value="medium" selected>Medium (4x4)</option>
+                        <option value="hard">Hard (5x5)</option>
+                        <option value="extreme">Extreme (10x10)</option>
+                    </select>
+                </div>
+
+                <div class="difficulty-section">
+                    <label for="shapes">Shapes:</label>
+                    <select id="shapes" class="difficulty-select">
+                        <option value="squares" selected>Squares</option>
+                        <option value="triangles">Triangles</option>
+                        <option value="hexagons">Hexagons</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="control-center">
+                <div class="upload-section">
+                    <input type="file" id="imageInput" accept="image/*" class="file-input">
+                    <label for="imageInput" class="upload-btn">
+                        📁 Upload Photo
+                    </label>
+                </div>
+
+                <button id="cutButton" class="btn btn-primary">
+                    ✂️ Cut into Puzzles
+                </button>
+
+                <button id="viewButton" class="btn btn-secondary hidden">
+                    👁️ Show Hint
+                </button>
+            </div>
+
+            <div class="control-right">
+                <button id="recordsButton" class="btn btn-secondary">
+                    🏆 View Records
+                </button>
+
+                <div class="music-player-section">
+                    <label for="musicSelect">🎵 Music:</label>
+                    <select id="musicSelect" class="music-select">
+                        <option value="none">None</option>
+                        <option value="ambient">Ambient Chill</option>
+                        <option value="electronic">Electronic Zen</option>
+                        <option value="minimal">Minimal Focus</option>
+                    </select>
+                    <button id="musicToggle" class="btn btn-music">▶️</button>
+                    <input type="range" id="volumeSlider" class="volume-slider" min="0" max="100" value="50">
+                </div>
+            </div>
+        </div>
+
+        <div class="main-layout">
+            <!-- Main Content Area -->
+            <div class="preview-area">
+                <div class="image-container">
+                    <canvas id="imageCanvas" class="canvas-display"></canvas>
+                </div>
+            </div>
+
+            <div class="content-area">
+                <!-- Assembly Field (Left) -->
+                <div class="assembly-field">
+                    <h3>Assembly Field</h3>
+                    <div class="assembly-container">
+                        <div id="ghostImageContainer" class="ghost-image-container hidden"></div>
+                        <div id="assemblyGrid" class="assembly-grid"></div>
+                    </div>
+                </div>
+                <!-- Original Image (Right) -->
+                <div class="image-display">
+                    <h3>Original Image</h3>
+                    <div class="image-container">
+                        <canvas id="imageCanvasDisplay" class="canvas-display"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status and Storage Area (Bottom) -->
+        <div class="bottom-area">
+            <div class="info-section">
+                <p id="statusText">Ready for image upload</p>
+            </div>
+            <div class="storage-area">
+                <h3>Storage</h3>
+                <div id="storageContainer" class="storage-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
