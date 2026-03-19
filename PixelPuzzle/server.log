@@ -1,5 +1,0 @@
-nohup: ignoring input
-127.0.0.1 - - [18/Mar/2026 22:54:49] "GET /style.css HTTP/1.1" 304 -
-127.0.0.1 - - [18/Mar/2026 22:54:49] "GET /script.js HTTP/1.1" 200 -
-127.0.0.1 - - [18/Mar/2026 22:54:57] code 404, message File not found
-127.0.0.1 - - [18/Mar/2026 22:54:57] "GET /favicon.ico HTTP/1.1" 404 -

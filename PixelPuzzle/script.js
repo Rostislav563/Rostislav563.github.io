@@ -121,7 +121,7 @@ class PixelPuzzle {
     }
 
     saveRecord() {
-        const records = this.loadRecords();
+        let records = this.loadRecords();
         const newRecord = {
             gridSize: this.gridSize,
             difficulty: this.difficultySelect.value,
