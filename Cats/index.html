@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cat Cards - Discover Cat Breeds</title>
+    <link rel="stylesheet" href="public/styles.css">
+</head>
+<body>
+    <header>
+        <h1>🐱 Cat Cards</h1>
+        <p>Discover beautiful cat breeds from around the world</p>
+    </header>
+
+    <main>
+        <div class="cards-grid" id="cards-container">
+            <div class="loading">Loading cats...</div>
+        </div>
+    </main>
+
+    <footer>
+        <p>Data provided by <a href="https://thecatapi.com" target="_blank">TheCatAPI</a></p>
+    </footer>
+
+    <script>
+        async function fetchCatBreeds() {
+            try {
+                const response = await fetch('https://api.thecatapi.com/v1/breeds?limit=12');
+                if (!response.ok) throw new Error('Failed to fetch cat data');
+                const breeds = await response.json();
+                return breeds.map(breed => ({
+                    ...breed,
+                    imageUrl: breed.reference_image_id 
+                        ? `https://cdn2.thecatapi.com/images/${breed.reference_image_id}.jpg`
+                        : 'https://placekitten.com/400/300'
+                }));
+            } catch (error) {
+                console.error('Error:', error);
+                return null;
+            }
+        }
+
+        function createCatCard(cat) {
+            const description = cat.description 
+                ? (cat.description.length > 150 ? cat.description.substring(0, 150) + '...' : cat.description)
+                : '';
+            
+            return `
+                <article class="cat-card">
+                    <div class="card-image">
+                        <img src="${cat.imageUrl}" alt="${cat.name}" loading="lazy">
+                    </div>
+                    <div class="card-content">
+                        <h2>${cat.name}</h2>
+                        ${cat.origin ? `<p class="origin">📍 ${cat.origin}</p>` : ''}
+                        ${cat.temperament ? `<p class="temperament">${cat.temperament}</p>` : ''}
+                        ${description ? `<p class="description">${description}</p>` : ''}
+                        <div class="stats">
+                            ${cat.life_span ? `<span class="stat">🕐 ${cat.life_span} years</span>` : ''}
+                            ${cat.weight?.metric ? `<span class="stat">⚖️ ${cat.weight.metric} kg</span>` : ''}
+                        </div>
+                    </div>
+                </article>
+            `;
+        }
+
+        async function init() {
+            const container = document.getElementById('cards-container');
+            const cats = await fetchCatBreeds();
+            
+            if (cats && cats.length > 0) {
+                container.innerHTML = cats.map(createCatCard).join('');
+            } else {
+                container.innerHTML = '<div class="error-message"><p>Failed to load cat data. Please try again later.</p></div>';
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

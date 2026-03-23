@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cat Cards - Discover Cat Breeds</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <header>
+        <h1>🐱 Cat Cards</h1>
+        <p>Discover beautiful cat breeds from around the world</p>
+    </header>
+
+    <main>
+        <% if (locals.error) { %>
+            <div class="error-message">
+                <p><%= error %></p>
+            </div>
+        <% } %>
+
+        <% if (cats && cats.length > 0) { %>
+            <div class="cards-grid">
+                <% cats.forEach(cat => { %>
+                    <%- include('partials/card', { cat }) %>
+                <% }) %>
+            </div>
+        <% } else if (!locals.error) { %>
+            <div class="no-cats">
+                <p>No cats found. Please try again later.</p>
+            </div>
+        <% } %>
+    </main>
+
+    <footer>
+        <p>Data provided by <a href="https://thecatapi.com" target="_blank">TheCatAPI</a></p>
+    </footer>
+</body>
+</html>
