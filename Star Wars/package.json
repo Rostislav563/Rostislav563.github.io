@@ -1,0 +1,10 @@
+{
+  "name": "star-wars-databank-cards",
+  "version": "1.0.0",
+  "description": "A Node.js Star Wars Databank explorer with category-based cards.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  }
+}

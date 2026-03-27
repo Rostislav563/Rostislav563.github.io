@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#070b17" />
+    <meta
+      name="description"
+      content="Загрузите фото и получите уникальный музыкальный фрагмент, собранный из его цветов и визуальных структур."
+    />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+    <title>Фото в звук</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Фото → звук</p>
+          <h1>Сделайте снимок музыкой</h1>
+          <p class="hero-lead">
+            Загрузите фото, и приложение разберёт его палитру, контраст и крупные визуальные зоны,
+            чтобы собрать из них уникальный музыкальный фрагмент.
+          </p>
+          <div class="hero-actions">
+            <label class="button button-primary" for="photo-input">Выбрать фото</label>
+            <button class="button button-secondary" id="play-btn" type="button" disabled>
+              Слушать фрагмент
+            </button>
+            <button class="button button-ghost" id="stop-btn" type="button" disabled>Стоп</button>
+          </div>
+          <p class="hero-note">
+            Обработка локальная. Фото не отправляется на сервер, а анализ и звук происходят прямо в
+            браузере.
+          </p>
+        </div>
+
+        <aside class="signature-card panel">
+          <div class="signature-top">
+            <div>
+              <p class="eyebrow">Музыкальная подпись</p>
+              <h2 id="hero-title">Загрузите фото</h2>
+              <p id="hero-subtitle">
+                Я соберу палитру, ритм и тембр на основе визуальных признаков.
+              </p>
+            </div>
+            <div class="tempo-ring" aria-hidden="true">
+              <span id="tempo-value">—</span>
+              <small>BPM</small>
+            </div>
+          </div>
+
+          <div class="signature-grid">
+            <div class="mini-stat">
+              <span>Лад</span>
+              <strong id="mode-value">—</strong>
+            </div>
+            <div class="mini-stat">
+              <span>Тональность</span>
+              <strong id="key-value">—</strong>
+            </div>
+            <div class="mini-stat">
+              <span>Тембр</span>
+              <strong id="instrument-value">—</strong>
+            </div>
+            <div class="mini-stat">
+              <span>Объекты</span>
+              <strong id="objects-value">—</strong>
+            </div>
+          </div>
+
+          <div class="hero-spectrum" id="hero-spectrum" aria-hidden="true"></div>
+        </aside>
+      </section>
+
+      <section class="workspace">
+        <article class="panel uploader-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Загрузка</p>
+              <h2>Перетащите фото</h2>
+            </div>
+            <span class="panel-tag">JPG / PNG / WEBP</span>
+          </div>
+
+          <label class="dropzone" id="dropzone">
+            <input id="photo-input" type="file" accept="image/*" />
+            <div class="dropzone-art" aria-hidden="true">
+              <svg viewBox="0 0 64 64" role="img" aria-hidden="true">
+                <defs>
+                  <linearGradient id="dropGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#7c5cff" />
+                    <stop offset="100%" stop-color="#37c2ff" />
+                  </linearGradient>
+                </defs>
+                <rect x="13" y="16" width="38" height="28" rx="8" fill="url(#dropGradient)" opacity="0.22" />
+                <path
+                  d="M18 40l10-10 6 6 8-9 4 4"
+                  fill="none"
+                  stroke="url(#dropGradient)"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="3"
+                />
+                <circle cx="25" cy="28" r="4" fill="url(#dropGradient)" />
+              </svg>
+            </div>
+            <div class="dropzone-copy">
+              <strong>Перетащите изображение сюда</strong>
+              <p>Или нажмите, чтобы выбрать фото с компьютера или телефона.</p>
+            </div>
+          </label>
+
+          <div class="preview-card">
+            <div class="preview-frame">
+              <img id="preview-image" alt="Предпросмотр выбранной фотографии" hidden />
+              <div class="preview-placeholder" id="preview-placeholder">
+                <p>Здесь появится предпросмотр и метаданные файла.</p>
+              </div>
+            </div>
+
+            <div class="preview-meta">
+              <div>
+                <span>Файл</span>
+                <strong id="file-name">—</strong>
+              </div>
+              <div>
+                <span>Размер</span>
+                <strong id="file-size">—</strong>
+              </div>
+              <div>
+                <span>Разрешение</span>
+                <strong id="image-size">—</strong>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel analysis-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Анализ</p>
+              <h2>Изображение → музыкальная карта</h2>
+            </div>
+            <span class="panel-tag" id="status-chip">Ожидание фото</span>
+          </div>
+
+          <p class="analysis-summary" id="analysis-summary">
+            Выберите изображение, чтобы увидеть цветовую палитру, объектные кластеры и музыкальную
+            карту.
+          </p>
+
+          <div class="stats-grid" id="stats-grid"></div>
+
+          <p class="status-line" id="status-line" role="status" aria-live="polite">
+            Ожидаю фотографию.
+          </p>
+
+          <div class="action-row">
+            <button class="button button-secondary" id="reset-btn" type="button" disabled>
+              Сбросить
+            </button>
+          </div>
+        </article>
+      </section>
+
+      <section class="cards-grid">
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Палитра</p>
+              <h2>Доминирующие цвета</h2>
+            </div>
+            <span class="panel-tag">5 swatches</span>
+          </div>
+          <div class="palette-grid" id="palette-grid"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Объекты и формы</p>
+              <h2>Визуальные кластеры</h2>
+            </div>
+            <span class="panel-tag" id="object-count-tag">—</span>
+          </div>
+          <div class="object-list" id="object-list"></div>
+        </article>
+
+        <article class="panel music-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Фрагмент</p>
+              <h2>Ритм и мелодия</h2>
+            </div>
+            <span class="panel-tag">Web Audio</span>
+          </div>
+          <p class="panel-lead" id="music-caption">
+            Фрагмент появится здесь после анализа фотографии.
+          </p>
+          <div class="timeline" id="timeline"></div>
+          <div class="spectrum" id="music-spectrum" aria-hidden="true"></div>
+        </article>
+      </section>
+
+      <footer class="footer">
+        <p>Локальное приложение на JavaScript и Node.js. Фото превращается в музыку без внешних библиотек.</p>
+      </footer>
+    </main>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>

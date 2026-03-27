@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#050816">
+  <title>Star Wars Databank Explorer</title>
+  <link rel="stylesheet" href="public/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <p class="eyebrow">Star Wars Databank</p>
+      <h1>Explore the galaxy through featured cards</h1>
+      <p class="hero-copy">
+        A Node.js-powered gallery of characters, droids, vehicles, and locations from a public Star Wars API.
+      </p>
+      <div class="hero-badges" aria-label="App highlights">
+        <span>Node.js</span>
+        <span>English UI</span>
+        <span>Category cards</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="status-panel" id="status-panel" aria-live="polite">
+        <p>Loading featured cards...</p>
+      </section>
+
+      <div id="catalog" class="catalog" aria-live="polite"></div>
+    </main>
+
+    <footer class="page-footer">
+      <p>
+        Data provided by
+        <a href="https://starwars-databank.vercel.app/" target="_blank" rel="noreferrer">Star Wars Databank</a>.
+      </p>
+    </footer>
+  </div>
+
+  <script src="public/app.js" defer></script>
+</body>
+</html>

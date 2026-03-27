@@ -1,0 +1,825 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Датчик человека и объектов</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #020617;
+      --panel: #0f172a;
+      --panel-soft: #111827;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --line: #334155;
+      --accent: #38bdf8;
+      --good: #22c55e;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(56, 189, 248, 0.12), transparent 30%),
+        linear-gradient(180deg, #020617 0%, #0f172a 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .app {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 4vw, 44px);
+      line-height: 1.05;
+    }
+
+    .subtitle {
+      margin: 0 0 20px;
+      color: var(--muted);
+      max-width: 68ch;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      background: linear-gradient(180deg, rgba(56, 189, 248, 0.22), rgba(56, 189, 248, 0.12));
+      color: var(--text);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      border-color: rgba(56, 189, 248, 0.6);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    #status {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .stage {
+      position: relative;
+      width: 100%;
+      max-width: 960px;
+      aspect-ratio: 4 / 3;
+      background: #000;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+    }
+
+    video,
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    canvas {
+      pointer-events: none;
+    }
+
+    .hint {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+      max-width: 960px;
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(51, 65, 85, 0.8);
+      border-radius: 16px;
+      padding: 16px;
+      min-height: 180px;
+    }
+
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 1.05rem;
+    }
+
+    .empty {
+      color: var(--muted);
+      margin: 0;
+    }
+
+    .person-item,
+    .object-item {
+      padding: 10px 0;
+      border-top: 1px solid rgba(148, 163, 184, 0.14);
+    }
+
+    .person-item:first-child,
+    .object-item:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.12);
+      color: #bae6fd;
+      font-size: 0.85rem;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <h1>Датчик человека и объектов</h1>
+    <p class="subtitle">
+      Откройте страницу, нажмите кнопку, разрешите доступ к камере — и модель начнёт искать человека и предметы рядом с ним прямо в браузере.
+    </p>
+
+    <div class="toolbar">
+      <button id="toggleBtn" type="button">Запустить камеру</button>
+      <div id="status">Готово к запуску.</div>
+    </div>
+
+    <section class="stage" aria-label="Видеопоток с распознаванием">
+      <video id="video" playsinline autoplay muted></video>
+      <canvas id="overlay"></canvas>
+    </section>
+
+    <div class="hint">
+      Если камера не запускается, попробуйте открыть страницу через <code>localhost</code> или HTTPS.
+    </div>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Люди в кадре</h2>
+        <div id="peopleList" class="muted">Пока ничего не найдено.</div>
+      </article>
+
+      <article class="card">
+        <h2>Объекты вокруг человека</h2>
+        <div id="objectsList" class="muted">Пока ничего не найдено.</div>
+      </article>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+  <script>
+    const toggleBtn = document.getElementById('toggleBtn');
+    const statusEl = document.getElementById('status');
+    const video = document.getElementById('video');
+    const overlay = document.getElementById('overlay');
+    const peopleList = document.getElementById('peopleList');
+    const objectsList = document.getElementById('objectsList');
+
+    const state = {
+      model: null,
+      stream: null,
+      running: false,
+      processing: false,
+      rafId: 0,
+      lastRunAt: 0,
+      backendName: '',
+      audioContext: null,
+      sirenNodes: null,
+      previousScene: [],
+      sceneReady: false,
+      lastAlertAt: 0
+    };
+
+    const DETECTION_INTERVAL = 350;
+    const SCORE_THRESHOLD = 0.55;
+    const PERSON_MARGIN_X = 0.32;
+    const PERSON_MARGIN_Y = 0.45;
+    const IOU_THRESHOLD = 0.35;
+    const ALERT_COOLDOWN_MS = 1800;
+    const SIREN_DURATION_MS = 1500;
+    const SIREN_BASE_FREQUENCY = 760;
+    const SIREN_PEAK_FREQUENCY = 1180;
+    const SIREN_GAIN = 0.09;
+
+    function setStatus(message) {
+      statusEl.textContent = message;
+    }
+
+    function setOverlaySize() {
+      if (!video.videoWidth || !video.videoHeight) {
+        return;
+      }
+
+      if (overlay.width !== video.videoWidth || overlay.height !== video.videoHeight) {
+        overlay.width = video.videoWidth;
+        overlay.height = video.videoHeight;
+      }
+    }
+
+    function ensureAudioContext() {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) {
+        return null;
+      }
+
+      if (!state.audioContext || state.audioContext.state === 'closed') {
+        state.audioContext = new AudioContextClass();
+      }
+
+      return state.audioContext;
+    }
+
+    function stopSiren() {
+      const nodes = state.sirenNodes;
+      if (!nodes) {
+        return;
+      }
+
+      state.sirenNodes = null;
+      nodes.oscillator.onended = null;
+      nodes.modulator.onended = null;
+
+      try {
+        nodes.oscillator.stop();
+      } catch (error) {
+        if (!error || error.name !== 'InvalidStateError') {
+          throw error;
+        }
+      }
+
+      try {
+        nodes.modulator.stop();
+      } catch (error) {
+        if (!error || error.name !== 'InvalidStateError') {
+          throw error;
+        }
+      }
+
+      nodes.oscillator.disconnect();
+      nodes.modulator.disconnect();
+      nodes.oscillatorGain.disconnect();
+      nodes.modulationGain.disconnect();
+    }
+
+    function resetSceneTracking() {
+      state.previousScene = [];
+      state.sceneReady = false;
+      state.lastAlertAt = 0;
+      stopSiren();
+    }
+
+    function stopStream() {
+      if (state.stream) {
+        state.stream.getTracks().forEach((track) => track.stop());
+        state.stream = null;
+      }
+      video.srcObject = null;
+    }
+
+    function clearOverlay() {
+      const ctx = overlay.getContext('2d');
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+    }
+
+    function stopApp(message = 'Камера остановлена.') {
+      state.running = false;
+      state.processing = false;
+      state.lastRunAt = 0;
+
+      if (state.rafId) {
+        cancelAnimationFrame(state.rafId);
+        state.rafId = 0;
+      }
+
+      stopStream();
+      clearOverlay();
+      toggleBtn.textContent = 'Запустить камеру';
+      setStatus(message);
+      peopleList.innerHTML = '<p class="empty">Пока ничего не найдено.</p>';
+      objectsList.innerHTML = '<p class="empty">Пока ничего не найдено.</p>';
+      resetSceneTracking();
+    }
+
+    function boxFromArray(box) {
+      const [x, y, width, height] = box;
+      return {
+        x,
+        y,
+        width,
+        height,
+        right: x + width,
+        bottom: y + height
+      };
+    }
+
+    function centerOf(box) {
+      const rect = boxFromArray(box);
+      return {
+        x: rect.x + rect.width / 2,
+        y: rect.y + rect.height / 2
+      };
+    }
+
+    function expandBox(box, marginX, marginY) {
+      const rect = boxFromArray(box);
+      const padX = rect.width * marginX;
+      const padY = rect.height * marginY;
+      const x = Math.max(0, rect.x - padX);
+      const y = Math.max(0, rect.y - padY);
+      const right = Math.min(overlay.width, rect.right + padX);
+      const bottom = Math.min(overlay.height, rect.bottom + padY);
+
+      return {
+        x,
+        y,
+        width: Math.max(0, right - x),
+        height: Math.max(0, bottom - y)
+      };
+    }
+
+    function intersects(a, b) {
+      return !(
+        a.x + a.width < b.x ||
+        b.x + b.width < a.x ||
+        a.y + a.height < b.y ||
+        b.y + b.height < a.y
+      );
+    }
+
+    function pointInBox(point, box) {
+      return (
+        point.x >= box.x &&
+        point.x <= box.x + box.width &&
+        point.y >= box.y &&
+        point.y <= box.y + box.height
+      );
+    }
+
+    function distanceBetweenCenters(first, second) {
+      const a = centerOf(first.bbox);
+      const b = centerOf(second.bbox);
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      return Math.hypot(dx, dy);
+    }
+
+    function detectionSnapshot(item) {
+      return {
+        class: item.class,
+        score: item.score,
+        bbox: item.bbox.slice()
+      };
+    }
+
+    function intersectionOverUnion(firstBox, secondBox) {
+      const first = boxFromArray(firstBox);
+      const second = boxFromArray(secondBox);
+      const intersectionWidth = Math.max(0, Math.min(first.right, second.right) - Math.max(first.x, second.x));
+      const intersectionHeight = Math.max(0, Math.min(first.bottom, second.bottom) - Math.max(first.y, second.y));
+      const intersectionArea = intersectionWidth * intersectionHeight;
+      const unionArea = (first.width * first.height) + (second.width * second.height) - intersectionArea;
+      return unionArea > 0 ? intersectionArea / unionArea : 0;
+    }
+
+    function compareScenes(previousScene, currentScene) {
+      const matchedPrevious = new Set();
+      const matchedCurrent = new Set();
+      const candidates = [];
+
+      currentScene.forEach((currentItem, currentIndex) => {
+        previousScene.forEach((previousItem, previousIndex) => {
+          if (currentItem.class !== previousItem.class) {
+            return;
+          }
+
+          const iou = intersectionOverUnion(currentItem.bbox, previousItem.bbox);
+          if (iou >= IOU_THRESHOLD) {
+            candidates.push({ currentIndex, previousIndex, iou });
+          }
+        });
+      });
+
+      candidates.sort((a, b) => b.iou - a.iou);
+
+      for (const candidate of candidates) {
+        if (matchedCurrent.has(candidate.currentIndex) || matchedPrevious.has(candidate.previousIndex)) {
+          continue;
+        }
+
+        matchedCurrent.add(candidate.currentIndex);
+        matchedPrevious.add(candidate.previousIndex);
+      }
+
+      const appeared = currentScene.filter((_, index) => !matchedCurrent.has(index));
+      const disappeared = previousScene.filter((_, index) => !matchedPrevious.has(index));
+
+      return {
+        appeared,
+        disappeared,
+        hasChange: appeared.length > 0 || disappeared.length > 0
+      };
+    }
+
+    function updateSceneTracking(currentScene) {
+      if (!state.sceneReady) {
+        state.previousScene = currentScene.map(detectionSnapshot);
+        state.sceneReady = true;
+        return null;
+      }
+
+      const change = compareScenes(state.previousScene, currentScene);
+      state.previousScene = currentScene.map(detectionSnapshot);
+      return change;
+    }
+
+    function triggerSiren(change) {
+      if (Date.now() - state.lastAlertAt < ALERT_COOLDOWN_MS) {
+        return false;
+      }
+
+      const audioContext = ensureAudioContext();
+      if (!audioContext) {
+        return false;
+      }
+
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().catch(() => {});
+      }
+
+      stopSiren();
+
+      const now = audioContext.currentTime;
+      const oscillator = audioContext.createOscillator();
+      const modulation = audioContext.createOscillator();
+      const oscillatorGain = audioContext.createGain();
+      const modulationGain = audioContext.createGain();
+
+      oscillator.type = 'sawtooth';
+      modulation.type = 'sine';
+      modulation.frequency.setValueAtTime(6, now);
+      modulationGain.gain.setValueAtTime(120, now);
+      oscillatorGain.gain.setValueAtTime(0.0001, now);
+      oscillatorGain.gain.linearRampToValueAtTime(SIREN_GAIN, now + 0.05);
+      oscillatorGain.gain.setValueAtTime(SIREN_GAIN, now + (SIREN_DURATION_MS / 1000) - 0.1);
+      oscillatorGain.gain.linearRampToValueAtTime(0.0001, now + (SIREN_DURATION_MS / 1000));
+
+      oscillator.frequency.setValueAtTime(SIREN_BASE_FREQUENCY, now);
+      oscillator.frequency.linearRampToValueAtTime(SIREN_PEAK_FREQUENCY, now + 0.35);
+      oscillator.frequency.linearRampToValueAtTime(SIREN_BASE_FREQUENCY, now + 0.7);
+      oscillator.frequency.linearRampToValueAtTime(SIREN_PEAK_FREQUENCY, now + 1.05);
+      oscillator.frequency.linearRampToValueAtTime(SIREN_BASE_FREQUENCY, now + (SIREN_DURATION_MS / 1000));
+
+      modulation.connect(modulationGain).connect(oscillator.frequency);
+      oscillator.connect(oscillatorGain).connect(audioContext.destination);
+
+      const cleanup = () => {
+        if (state.sirenNodes && state.sirenNodes.oscillator === oscillator) {
+          state.sirenNodes = null;
+        }
+
+        oscillator.onended = null;
+        modulation.onended = null;
+        oscillator.disconnect();
+        modulation.disconnect();
+        oscillatorGain.disconnect();
+        modulationGain.disconnect();
+      };
+
+      oscillator.onended = cleanup;
+      modulation.onended = cleanup;
+
+      state.sirenNodes = {
+        oscillator,
+        modulation,
+        oscillatorGain,
+        modulationGain
+      };
+      state.lastAlertAt = Date.now();
+
+      oscillator.start(now);
+      modulation.start(now);
+      oscillator.stop(now + (SIREN_DURATION_MS / 1000) + 0.05);
+      modulation.stop(now + (SIREN_DURATION_MS / 1000) + 0.05);
+
+      const appearedCount = change.appeared.length;
+      const disappearedCount = change.disappeared.length;
+      const changeParts = [];
+
+      if (appearedCount) {
+        changeParts.push(`появилось ${appearedCount}`);
+      }
+
+      if (disappearedCount) {
+        changeParts.push(`исчезло ${disappearedCount}`);
+      }
+
+      setStatus(`Сирена: ${changeParts.join(', ')}.`);
+      return true;
+    }
+
+    function buildAssignments(predictions) {
+      const people = predictions.filter((item) => item.class === 'person').map((person, index) => ({
+        index,
+        person,
+        nearby: []
+      }));
+
+      const objects = predictions.filter((item) => item.class !== 'person').map((item) => ({
+        ...item,
+        assignedPerson: -1
+      }));
+
+      for (const object of objects) {
+        let bestPerson = -1;
+        let bestDistance = Number.POSITIVE_INFINITY;
+
+        for (const candidate of people) {
+          const zone = expandBox(candidate.person.bbox, PERSON_MARGIN_X, PERSON_MARGIN_Y);
+          const objectCenter = centerOf(object.bbox);
+
+          if (!intersects(zone, boxFromArray(object.bbox)) && !pointInBox(objectCenter, zone)) {
+            continue;
+          }
+
+          const distance = distanceBetweenCenters(candidate.person, object);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestPerson = candidate.index;
+          }
+        }
+
+        if (bestPerson >= 0) {
+          object.assignedPerson = bestPerson;
+          people[bestPerson].nearby.push(object);
+        }
+      }
+
+      return { people, objects };
+    }
+
+    function drawLabel(ctx, x, y, text, color) {
+      ctx.font = '16px Inter, system-ui, sans-serif';
+      ctx.textBaseline = 'top';
+      const paddingX = 8;
+      const paddingY = 5;
+      const metrics = ctx.measureText(text);
+      const labelHeight = 24;
+      const labelWidth = metrics.width + paddingX * 2;
+      const labelY = y > labelHeight + 6 ? y - labelHeight - 4 : y + 4;
+
+      ctx.fillStyle = color;
+      ctx.fillRect(x, labelY, labelWidth, labelHeight);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(text, x + paddingX, labelY + paddingY - 1);
+    }
+
+    function drawDetection(ctx, item, color, text) {
+      const [x, y, width, height] = item.bbox;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x, y, width, height);
+      drawLabel(ctx, x, y, text, color);
+    }
+
+    function renderPanels(assignments) {
+      if (!assignments.people.length) {
+        peopleList.innerHTML = '<p class="empty">Человек пока не найден.</p>';
+      } else {
+        peopleList.innerHTML = assignments.people.map((entry) => {
+          const nearbyNames = entry.nearby.map((item) => item.class).join(', ') || 'Нет рядом объектов';
+          return `
+            <div class="person-item">
+              <strong>Человек #${entry.index + 1}</strong>
+              <div class="badge">${entry.nearby.length} рядом</div>
+              <div class="muted" style="margin-top:8px;">${nearbyNames}</div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      const totalObjects = assignments.objects.length;
+      const assignedObjects = assignments.objects.filter((item) => item.assignedPerson >= 0);
+      const looseObjects = assignments.objects.filter((item) => item.assignedPerson < 0);
+
+      if (!totalObjects) {
+        objectsList.innerHTML = '<p class="empty">Объекты не найдены.</p>';
+        return;
+      }
+
+      const summary = [];
+
+      if (assignedObjects.length) {
+        summary.push(`
+          <div class="object-item">
+            <strong>Объекты рядом с человеком</strong>
+            <div class="muted" style="margin-top:8px;">${assignedObjects.map((item) => item.class).join(', ')}</div>
+          </div>
+        `);
+      }
+
+      if (looseObjects.length) {
+        summary.push(`
+          <div class="object-item">
+            <strong>Объекты в кадре</strong>
+            <div class="muted" style="margin-top:8px;">${looseObjects.map((item) => item.class).join(', ')}</div>
+          </div>
+        `);
+      }
+
+      objectsList.innerHTML = summary.join('');
+    }
+
+    function render(predictions) {
+      setOverlaySize();
+      const ctx = overlay.getContext('2d');
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+      const filtered = predictions.filter((item) => item.score >= SCORE_THRESHOLD);
+      const assignments = buildAssignments(filtered);
+      const sceneChange = updateSceneTracking(filtered);
+      const sirenPlayed = sceneChange && sceneChange.hasChange ? triggerSiren(sceneChange) : false;
+
+      if (!filtered.length) {
+        setStatus('Человек и объекты пока не найдены.');
+      } else if (!sirenPlayed) {
+        setStatus(`Готово: людей ${assignments.people.length}, объектов ${assignments.objects.length}. Бэкенд: ${state.backendName || 'unknown'}`);
+      }
+
+      for (const entry of assignments.people) {
+        const label = `человек ${Math.round(entry.person.score * 100)}%`;
+        drawDetection(ctx, entry.person, '#38bdf8', label);
+      }
+
+      for (const item of assignments.objects) {
+        const color = item.assignedPerson >= 0 ? '#22c55e' : '#f59e0b';
+        const label = `${item.class} ${Math.round(item.score * 100)}%`;
+        drawDetection(ctx, item, color, label);
+      }
+
+      renderPanels(assignments);
+    }
+
+    async function loadModel() {
+      if (!window.tf || !window.cocoSsd) {
+        throw new Error('Не удалось загрузить библиотеку распознавания.');
+      }
+
+      await tf.ready();
+
+      const backendReady = await tf.setBackend('webgl');
+      if (!backendReady) {
+        const cpuReady = await tf.setBackend('cpu');
+        if (!cpuReady) {
+          throw new Error('Не удалось включить backend TensorFlow.js.');
+        }
+      }
+
+      state.backendName = tf.getBackend();
+      return cocoSsd.load({ base: 'lite_mobilenet_v2' });
+    }
+
+    async function startApp() {
+      if (state.running) {
+        return;
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setStatus('Этот браузер не поддерживает доступ к камере.');
+        return;
+      }
+
+      const audioContext = ensureAudioContext();
+      if (audioContext && audioContext.state === 'suspended') {
+        audioContext.resume().catch((error) => {
+          console.warn('Audio resume failed:', error);
+        });
+      }
+
+      toggleBtn.disabled = true;
+      setStatus('Открываю камеру...');
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'user',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+
+        state.stream = stream;
+        video.srcObject = stream;
+
+        await video.play();
+
+        setStatus('Загружаю модель распознавания...');
+        state.model = state.model || await loadModel();
+
+        setOverlaySize();
+        state.running = true;
+        toggleBtn.textContent = 'Остановить камеру';
+        setStatus('Камера включена. Ищу человека и объекты...');
+        state.rafId = requestAnimationFrame(loop);
+      } catch (error) {
+        stopStream();
+        const message = error && error.message ? error.message : 'Не удалось запустить камеру.';
+        setStatus(`Ошибка: ${message}`);
+      } finally {
+        toggleBtn.disabled = false;
+      }
+    }
+
+    function loop(timestamp) {
+      if (!state.running) {
+        return;
+      }
+
+      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        if (!state.processing && timestamp - state.lastRunAt >= DETECTION_INTERVAL) {
+          state.processing = true;
+          state.lastRunAt = timestamp;
+
+          state.model.detect(video)
+            .then((predictions) => {
+              render(predictions);
+            })
+            .catch((error) => {
+              setStatus(`Ошибка распознавания: ${error.message || error}`);
+            })
+            .finally(() => {
+              state.processing = false;
+            });
+        }
+      }
+
+      state.rafId = requestAnimationFrame(loop);
+    }
+
+    function stopAppFromButton() {
+      if (!state.running) {
+        return startApp();
+      }
+
+      stopApp();
+      return Promise.resolve();
+    }
+
+    toggleBtn.addEventListener('click', () => {
+      stopAppFromButton();
+    });
+
+    window.addEventListener('beforeunload', () => {
+      stopApp('Закрытие страницы.');
+    });
+  </script>
+</body>
+</html>

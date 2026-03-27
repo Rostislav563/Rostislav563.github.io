@@ -1,0 +1,13 @@
+{
+  "name": "photo-to-music",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Photo-driven music sketch built with Node.js and JavaScript",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check public/app.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
