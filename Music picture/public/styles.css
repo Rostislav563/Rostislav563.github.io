@@ -88,6 +88,7 @@ textarea {
 
 .panel {
   position: relative;
+  min-width: 0;
   background: linear-gradient(180deg, rgba(15, 21, 40, 0.82), rgba(8, 12, 24, 0.92));
   border: 1px solid var(--line);
   border-radius: 28px;
@@ -140,6 +141,7 @@ textarea {
   margin: 0;
   line-height: 1.05;
   letter-spacing: -0.04em;
+  text-wrap: balance;
 }
 
 .hero h1 {
@@ -162,6 +164,7 @@ textarea {
   margin: 0;
   color: var(--muted);
   line-height: 1.65;
+  overflow-wrap: anywhere;
 }
 
 .hero-lead {
@@ -261,6 +264,12 @@ textarea {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+}
+
+.signature-top > div,
+.panel-header > div,
+.dropzone-copy {
+  min-width: 0;
 }
 
 .signature-top h2 {
@@ -448,6 +457,7 @@ textarea {
   display: block;
   font-size: 1rem;
   margin-bottom: 0.2rem;
+  overflow-wrap: anywhere;
 }
 
 .preview-card {
@@ -459,6 +469,7 @@ textarea {
 .preview-frame {
   position: relative;
   min-height: 270px;
+  margin: 0;
   border-radius: 24px;
   background:
     radial-gradient(circle at 50% 15%, rgba(255, 255, 255, 0.08), transparent 32%),
@@ -485,6 +496,44 @@ textarea {
     radial-gradient(circle at 50% 15%, rgba(var(--accent-rgb), 0.08), transparent 35%);
 }
 
+.preview-overlay {
+  position: absolute;
+  left: 0.85rem;
+  right: 0.85rem;
+  bottom: 0.85rem;
+  padding: 0.85rem 0.95rem;
+  display: grid;
+  gap: 0.2rem;
+  border-radius: 18px;
+  background: rgba(7, 11, 23, 0.74);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  min-width: 0;
+}
+
+.preview-overlay__eyebrow {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(var(--accent-2-rgb), 0.95);
+}
+
+.preview-overlay strong {
+  font-size: 1rem;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+
+.preview-overlay p {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .preview-meta {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -503,6 +552,7 @@ textarea {
 .preview-meta div {
   padding: 0.85rem 0.95rem;
   border-radius: 18px;
+  min-width: 0;
 }
 
 .preview-meta span,
@@ -520,6 +570,7 @@ textarea {
   display: block;
   margin-top: 0.35rem;
   font-size: 0.98rem;
+  overflow-wrap: anywhere;
 }
 
 .analysis-panel {
@@ -547,6 +598,7 @@ textarea {
   padding: 0.95rem 1rem;
   border-radius: 18px;
   min-height: 92px;
+  min-width: 0;
 }
 
 .stat-card.is-placeholder,
@@ -594,6 +646,7 @@ textarea {
   padding: 0.85rem;
   border-radius: 20px;
   overflow: hidden;
+  min-width: 0;
 }
 
 .palette-item::before,
@@ -629,6 +682,7 @@ textarea {
   display: block;
   margin-bottom: 0.18rem;
   font-size: 1rem;
+  overflow-wrap: anywhere;
 }
 
 .object-list {
@@ -641,6 +695,7 @@ textarea {
   padding: 1rem;
   border-radius: 20px;
   overflow: hidden;
+  min-width: 0;
 }
 
 .object-card__head {
@@ -661,6 +716,7 @@ textarea {
   display: block;
   font-size: 1.02rem;
   margin-top: 0.1rem;
+  overflow-wrap: anywhere;
 }
 
 .object-meta {
@@ -724,11 +780,13 @@ textarea {
     border-color 180ms ease,
     background 180ms ease,
     opacity 180ms ease;
+  min-width: 0;
 }
 
 .timeline-step strong {
   font-size: 1rem;
   color: #fff;
+  overflow-wrap: anywhere;
 }
 
 .timeline-step.is-active {
@@ -804,6 +862,13 @@ textarea {
 
   .panel-tag {
     align-self: flex-start;
+  }
+
+  .preview-overlay {
+    left: 0.6rem;
+    right: 0.6rem;
+    bottom: 0.6rem;
+    padding: 0.75rem 0.8rem;
   }
 }
 

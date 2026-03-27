@@ -6,6 +6,7 @@ A simple Node.js web app that fetches Star Wars Databank data and renders catego
 
 - Loads data from the public Star Wars Databank API
 - Displays featured cards for multiple categories
+- Swaps card artwork on hover using other Databank image variants for the same item
 - Uses a Node.js server for a local proxy and static file hosting
 - Works with a responsive, dark Star Wars-themed layout
 

@@ -51,7 +51,10 @@ const elements = {
   paletteGrid: document.getElementById('palette-grid'),
   photoInput: document.getElementById('photo-input'),
   playBtn: document.getElementById('play-btn'),
+  previewFileMeta: document.getElementById('preview-file-meta'),
+  previewFileName: document.getElementById('preview-file-name'),
   previewImage: document.getElementById('preview-image'),
+  previewOverlay: document.getElementById('preview-overlay'),
   previewPlaceholder: document.getElementById('preview-placeholder'),
   resetBtn: document.getElementById('reset-btn'),
   statusChip: document.getElementById('status-chip'),
@@ -1101,8 +1104,13 @@ function renderPlaceholderState() {
   elements.statusLine.textContent = 'Ожидаю фотографию.';
   elements.statusChip.textContent = 'Ожидание фото';
   elements.fileName.textContent = '—';
+  elements.fileName.title = '';
   elements.fileSize.textContent = '—';
   elements.imageSize.textContent = '—';
+  elements.previewOverlay.hidden = true;
+  elements.previewFileName.textContent = '—';
+  elements.previewFileName.title = '';
+  elements.previewFileMeta.textContent = 'Выберите фотографию, чтобы увидеть её подпись.';
 
   elements.statsGrid.replaceChildren(
     ...[
@@ -1225,7 +1233,11 @@ function renderPreview(file, image) {
   state.previewUrl = previewUrl;
   elements.previewImage.hidden = false;
   elements.previewPlaceholder.hidden = true;
-  elements.previewImage.alt = file.name;
+  elements.previewOverlay.hidden = false;
+  elements.previewImage.alt = `Предпросмотр: ${file.name}`;
+  elements.previewFileName.textContent = file.name;
+  elements.previewFileName.title = file.name;
+  elements.previewFileMeta.textContent = `${formatFileSize(file.size)} • ${image.width} × ${image.height}`;
 
   elements.previewImage.onload = () => {
     if (state.previewUrl === previewUrl) {
@@ -1242,11 +1254,13 @@ function renderPreview(file, image) {
 
     elements.previewImage.hidden = true;
     elements.previewPlaceholder.hidden = false;
+    elements.previewOverlay.hidden = true;
   };
 
   elements.previewImage.src = previewUrl;
 
   elements.fileName.textContent = file.name;
+  elements.fileName.title = file.name;
   elements.fileSize.textContent = formatFileSize(file.size);
   elements.imageSize.textContent = `${image.width} × ${image.height}`;
 }
@@ -1568,8 +1582,13 @@ function clearPreview() {
   }
 
   elements.previewImage.src = '';
+  elements.previewImage.alt = 'Предпросмотр выбранной фотографии';
   elements.previewImage.hidden = true;
   elements.previewPlaceholder.hidden = false;
+  elements.previewOverlay.hidden = true;
+  elements.previewFileName.textContent = '—';
+  elements.previewFileName.title = '';
+  elements.previewFileMeta.textContent = 'Выберите фотографию, чтобы увидеть её подпись.';
 }
 
 async function handleFile(file) {
@@ -1592,8 +1611,13 @@ async function handleFile(file) {
   state.currentFile = file;
   clearPreview();
   elements.fileName.textContent = file.name;
+  elements.fileName.title = file.name;
   elements.fileSize.textContent = formatFileSize(file.size);
   elements.imageSize.textContent = '…';
+  elements.previewOverlay.hidden = false;
+  elements.previewFileName.textContent = file.name;
+  elements.previewFileName.title = file.name;
+  elements.previewFileMeta.textContent = 'Подготавливаю предпросмотр…';
   setStatus('Анализ', 'Разбираю цвета, контраст и объектные зоны...');
   syncButtons();
 

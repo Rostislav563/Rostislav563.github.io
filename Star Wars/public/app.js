@@ -28,6 +28,7 @@ const FEATURED_CATEGORIES = [
 
 const CARD_LIMIT = 3;
 const FALLBACK_IMAGE = 'public/images/placeholder.svg';
+const HOVER_IMAGE_MAP = window.STAR_WARS_HOVER_IMAGES || {};
 const catalog = document.getElementById('catalog');
 const statusPanel = document.getElementById('status-panel');
 
@@ -53,6 +54,25 @@ function truncateText(text, maxLength = 160) {
   return `${raw.slice(0, maxLength).trimEnd()}...`;
 }
 
+function slugify(value) {
+  return String(value)
+    .toLowerCase()
+    .replaceAll('"', '')
+    .replaceAll("'", '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function buildHoverKey(resource, name) {
+  return `${resource}:${slugify(name)}`;
+}
+
+function getHoverImage(resource, name, primaryImage) {
+  const hoverImage = HOVER_IMAGE_MAP[buildHoverKey(resource, name)];
+  return hoverImage && hoverImage !== primaryImage ? hoverImage : null;
+}
+
 function setStatus(message, tone = 'success') {
   statusPanel.className = `status-panel status-panel--${tone}`;
   statusPanel.innerHTML = `<p>${escapeHtml(message)}</p>`;
@@ -60,17 +80,31 @@ function setStatus(message, tone = 'success') {
 
 function renderCard(item, categoryLabel) {
   const imageUrl = item.image || FALLBACK_IMAGE;
+  const hoverImage = item.hoverImage && item.hoverImage !== imageUrl ? item.hoverImage : null;
   const description = truncateText(item.description);
 
   return `
     <article class="sw-card">
       <div class="sw-card__image">
         <img
+          class="sw-card__image-primary"
           src="${escapeHtml(imageUrl)}"
           alt="${escapeHtml(item.name)}"
           loading="lazy"
+          decoding="async"
           onerror="this.onerror=null;this.src='${FALLBACK_IMAGE}';"
         >
+        ${hoverImage ? `
+          <img
+            class="sw-card__image-hover"
+            src="${escapeHtml(hoverImage)}"
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            decoding="async"
+            onerror="this.onerror=null;this.src='${FALLBACK_IMAGE}';"
+          >
+        ` : ''}
       </div>
       <div class="sw-card__body">
         <span class="sw-card__tag">${escapeHtml(categoryLabel)}</span>
@@ -114,12 +148,18 @@ async function fetchCategory(category) {
 
       return {
         ...category,
-        items: items.map((item) => ({
-          id: item._id || item.name,
-          name: item.name || 'Unknown item',
-          description: item.description || 'No description available.',
-          image: item.image || FALLBACK_IMAGE,
-        })),
+        items: items.map((item) => {
+          const name = item.name || 'Unknown item';
+          const image = item.image || FALLBACK_IMAGE;
+
+          return {
+            id: item._id || name,
+            name,
+            description: item.description || 'No description available.',
+            image,
+            hoverImage: getHoverImage(category.resource, name, image),
+          };
+        }),
       };
     } catch (error) {
       lastError = error;

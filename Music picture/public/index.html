@@ -112,12 +112,17 @@
           </label>
 
           <div class="preview-card">
-            <div class="preview-frame">
+            <figure class="preview-frame">
               <img id="preview-image" alt="Предпросмотр выбранной фотографии" hidden />
               <div class="preview-placeholder" id="preview-placeholder">
                 <p>Здесь появится предпросмотр и метаданные файла.</p>
               </div>
-            </div>
+              <figcaption class="preview-overlay" id="preview-overlay" hidden>
+                <span class="preview-overlay__eyebrow">Загружено изображение</span>
+                <strong id="preview-file-name">—</strong>
+                <p id="preview-file-meta">—</p>
+              </figcaption>
+            </figure>
 
             <div class="preview-meta">
               <div>
